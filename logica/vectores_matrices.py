@@ -146,3 +146,154 @@ def resolver_ecuacion_matricial(A, b):
         matriz_aumentada.append(fila)
 
     return resolver_gauss_jordan(matriz_aumentada, m, n)
+
+# ------------------------------------------------------------------------------
+# 4. PROPIEDADES DEL PRODUCTO MATRIZ-VECTOR Ax
+# Teorema:
+# a) A(u + v) = Au + Av
+# b) A(c·u) = c(Au)
+# ------------------------------------------------------------------------------
+
+def multiplicar_matriz_vector(A, v):
+    """
+    Multiplica una matriz A de m x n por un vector columna v de n x 1.
+    Retorna un vector de m elementos.
+    """
+    m = len(A)
+    n = len(A[0])
+    if len(v) != n:
+        raise ValueError(f"Incompatibilidad de dimensiones: Matriz A ({m}x{n}) y vector v de dimensión {len(v)}.")
+    
+    mat_v = [[elem] for elem in v]
+    res_mat = multiplicar_matrices(A, mat_v)
+    return [fila[0] for fila in res_mat]
+
+def verificar_propiedades_ax(A, u, v, c):
+    """
+    Verifica las propiedades del producto matriz-vector Ax demostrando paso a paso:
+    a) A(u + v) = Au + Av
+    b) A(c·u) = c(Au)
+    """
+    from logica.algebra_lineal import decimal_a_fraccion, formato_matriz_html
+
+    def vec_a_mat(vec):
+        return [[elem] for elem in vec]
+
+    pasos_html = []
+
+    # ==========================================================================
+    # PROPIEDAD A: A(u + v) = Au + Av
+    # ==========================================================================
+    
+    pasos_html.append("<h4 style='color:#1B4F72;'>PROPIEDAD A: A(u + v) = Au + Av</h4>")
+
+    # Lado Izquierdo: A(u + v)
+    u_mas_v = sumar_vectores(u, v)
+    A_u_mas_v = multiplicar_matriz_vector(A, u_mas_v)
+
+    pasos_html.append("<b>1. Lado Izquierdo: A(u + v)</b><br>")
+    pasos_html.append(f"&bull; Paso 1.1: Sumar vectores (u + v) = {u_mas_v}<br>")
+    pasos_html.append(formato_matriz_html(vec_a_mat(u_mas_v), "Vector (u + v):"))
+    pasos_html.append(formato_matriz_html(vec_a_mat(A_u_mas_v), "Resultado A(u + v):"))
+
+    # Lado Derecho: Au + Av
+    Au = multiplicar_matriz_vector(A, u)
+    Av = multiplicar_matriz_vector(A, v)
+    Au_mas_Av = sumar_vectores(Au, Av)
+
+    pasos_html.append("<br><b>2. Lado Derecho: Au + Av</b><br>")
+    pasos_html.append(formato_matriz_html(vec_a_mat(Au), "Resultado Au:"))
+    pasos_html.append(formato_matriz_html(vec_a_mat(Av), "Resultado Av:"))
+    pasos_html.append(f"&bull; Paso 2.1: Sumar resultados Au + Av = {Au_mas_Av}<br>")
+    pasos_html.append(formato_matriz_html(vec_a_mat(Au_mas_Av), "Resultado Au + Av:"))
+
+    cumple_a = all(abs(A_u_mas_v[i] - Au_mas_Av[i]) < 1e-7 for i in range(len(A_u_mas_v)))
+
+    # ==========================================================================
+    # PROPIEDAD B: A(c·u) = c(Au)
+    # ==========================================================================
+    pasos_html.append("<hr><h4 style='color:#1B4F72;'>PROPIEDAD B: A(c·u) = c(Au)</h4>")
+
+    # Lado Izquierdo: A(c·u)
+    cu = escalar_por_vector(c, u)
+    A_cu = multiplicar_matriz_vector(A, cu)
+
+    c_str = decimal_a_fraccion(c)
+    pasos_html.append(f"<b>1. Lado Izquierdo: A({c_str} · u)</b><br>")
+    pasos_html.append(f"&bull; Paso 1.1: Multiplicar escalar c · u = {cu}<br>")
+    pasos_html.append(formato_matriz_html(vec_a_mat(cu), f"Vector ({c_str}·u):"))
+    pasos_html.append(formato_matriz_html(vec_a_mat(A_cu), f"Resultado A({c_str}·u):"))
+
+    # Lado Derecho: c(Au)
+    c_Au = escalar_por_vector(c, Au)
+
+    pasos_html.append(f"<br><b>2. Lado Derecho: {c_str} · (Au)</b><br>")
+    pasos_html.append(f"&bull; Paso 2.1: Multiplicar escalar por el vector Au resultante:<br>")
+    pasos_html.append(formato_matriz_html(vec_a_mat(c_Au), f"Resultado {c_str} · (Au):"))
+
+    cumple_b = all(abs(A_cu[i] - c_Au[i]) < 1e-7 for i in range(len(A_cu)))
+
+    # ==========================================================================
+    # DICTAMEN FINAL
+    # ==========================================================================
+    resumen_html = "<h3>Dictamen de Comprobación del Teorema:</h3>"
+    if cumple_a:
+        resumen_html += "<b style='color:#27AE60;'>✔ Propiedad a) A(u + v) = Au + Av SE CUMPLE SATISFACTORIAMENTE.</b><br>"
+    else:
+        resumen_html += "<b style='color:#C0392B;'>✘ Propiedad a) NO SE CUMPLE.</b><br>"
+
+    if cumple_b:
+        resumen_html += "<b style='color:#27AE60;'>✔ Propiedad b) A(c·u) = c(Au) SE CUMPLE SATISFACTORIAMENTE.</b><br>"
+    else:
+        resumen_html += "<b style='color:#C0392B;'>✘ Propiedad b) NO SE CUMPLE.</b><br>"
+
+    return "".join(pasos_html), resumen_html
+
+# ------------------------------------------------------------------------------
+# 5. EVALUACIÓN DE INDEPENDENCIA LINEAL (L.I. / L.D.)
+# ------------------------------------------------------------------------------
+
+def evaluar_independencia_lineal(conjunto_vectores, n, k):
+    """
+    Evalúa si un conjunto de k vectores en Rⁿ es L.I. o L.D.
+    Construye el sistema homogéneo [A|0] y lo reduce mediante Gauss-Jordan.
+    """
+    # 1. Construir la matriz aumentada del sistema homogéneo [A | 0]
+    matriz_aumentada = []
+    for i in range(n):
+        # Tomar la componente i-ésima de cada vector y agregar el término independiente 0
+        fila = [conjunto_vectores[j][i] for j in range(k)] + [0.0]
+        matriz_aumentada.append(fila)
+
+    # 2. Resolver usando Gauss-Jordan (reutilizando algebra_lineal.py)
+    matriz_rref, pasos_log, resumen_txt = resolver_gauss_jordan(matriz_aumentada, n, k)
+
+    # 3. Contar pivotes en las columnas de los vectores (0 a k-1)
+    num_pivotes = 0
+    for i in range(n):
+        # Si la fila tiene algún elemento distinto de cero en las primeras k columnas, es una fila con pivote
+        if any(abs(matriz_rref[i][j]) > 1e-9 for j in range(k)):
+            num_pivotes += 1
+
+    num_vars_libres = k - num_pivotes
+    es_li = (num_vars_libres == 0)
+
+    # 4. Generar el dictamen teórico
+    dictamen_html = "<br><b>DICTAMEN TEÓRICO DE INDEPENDENCIA LINEAL:</b><br>"
+    dictamen_html += f"&bull; Cantidad de vectores (k): <b>{k}</b><br>"
+    dictamen_html += f"&bull; Número de pivotes encontrados: <b>{num_pivotes}</b><br>"
+    dictamen_html += f"&bull; Variables libres: <b>{num_vars_libres}</b><br><br>"
+
+    if es_li:
+        dictamen_html += "<b style='color:#27AE60; font-size:14px;'>"
+        dictamen_html += "✔ El conjunto de vectores es LINEALMENTE INDEPENDIENTE (L.I.).</b><br>"
+        dictamen_html += "<i>Explicación: La única solución al sistema homogéneo Ax = 0 es la solución trivial (x₁ = x₂ = ... = 0).</i>"
+    else:
+        dictamen_html += "<b style='color:#C0392B; font-size:14px;'>"
+        dictamen_html += "✖ El conjunto de vectores es LINEALMENTE DEPENDIENTE (L.D.).</b><br>"
+        dictamen_html += f"<i>Explicación: Existen {num_vars_libres} variable(s) libre(s), lo que implica infinitas soluciones además de la trivial.</i>"
+
+    # Unir el resumen de la solución con el dictamen explícito
+    resumen_completo = resumen_txt + dictamen_html
+
+    return matriz_rref, pasos_log, resumen_completo

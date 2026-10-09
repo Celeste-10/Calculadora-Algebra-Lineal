@@ -2,18 +2,27 @@
 # INTERFAZ GRÁFICA BALANCEADA - PROGRAMA 3 (ACENTOS NAVY & DEEP BLUES)
 # ==============================================================================
 
-from PyQt6.QtWidgets import (
-    QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
-    QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
-    QMessageBox, QTabWidget, QDoubleSpinBox
-)
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
+try:
+    from PyQt6.QtWidgets import (
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
+        QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
+        QMessageBox, QTabWidget, QDoubleSpinBox
+    )
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtGui import QFont
+except ImportError:
+    from PyQt5.QtWidgets import (
+        QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
+        QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
+        QMessageBox, QTabWidget, QDoubleSpinBox
+    )
+    from PyQt5.QtCore import Qt
+    from PyQt5.QtGui import QFont
 
 from logica.vectores_matrices import (
     sumar_matrices, restar_matrices, escalar_por_matriz, multiplicar_matrices,
     sumar_vectores, restar_vectores, escalar_por_vector,
-    es_combinacion_lineal, resolver_ecuacion_matricial
+    es_combinacion_lineal, resolver_ecuacion_matricial, verificar_propiedades_ax
 )
 from logica.algebra_lineal import formato_matriz_html
 
@@ -140,7 +149,7 @@ class InterfazPrograma3(QMainWindow):
         lbl_titulo = QLabel("ÁLGEBRA LINEAL: OPERACIONES EN Rⁿ, MATRICES Y COMBINACIONES")
         lbl_titulo.setFont(QFont("Segoe UI", 13, QFont.Weight.Bold))
         lbl_titulo.setStyleSheet("color: #4A90E2; margin-bottom: 5px;")
-        lbl_titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        lbl_titulo.setAlignment(Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter)
         layout_main.addWidget(lbl_titulo)
 
         tabs = QTabWidget()
@@ -148,6 +157,7 @@ class InterfazPrograma3(QMainWindow):
         tabs.addTab(self.tab_matrices(), "Operaciones Matriciales")
         tabs.addTab(self.tab_combinaciones(), "Combinación Lineal")
         tabs.addTab(self.tab_ecuaciones(), "Ecuación Ax = b")
+        tabs.addTab(self.tab_propiedades_ax(), "Propiedades Ax")
 
         layout_main.addWidget(tabs)
 
@@ -201,11 +211,12 @@ class InterfazPrograma3(QMainWindow):
 
     def gen_tablas_vec(self):
         n = self.spin_n_vec.value()
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
         for t in [self.tabla_u, self.tabla_v]:
             t.setRowCount(1); t.setColumnCount(n)
             for j in range(n):
                 item = QTableWidgetItem("0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(align_center)
                 t.setItem(0, j, item)
 
     def _get_vec(self, t):
@@ -295,15 +306,17 @@ class InterfazPrograma3(QMainWindow):
 
         self.genA(); self.genB()
         return w
+
     def genA(self): self._fill_mat(self.tabA, self.mA.value(), self.nA.value())
     def genB(self): self._fill_mat(self.tabB, self.mB.value(), self.nB.value())
 
     def _fill_mat(self, t, m, n):
         t.setRowCount(m); t.setColumnCount(n)
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
         for i in range(m):
             for j in range(n):
                 item = QTableWidgetItem("0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(align_center)
                 t.setItem(i, j, item)
 
     def _get_mat(self, t):
@@ -351,10 +364,11 @@ class InterfazPrograma3(QMainWindow):
         n, k = self.spin_dim_c.value(), self.spin_k_c.value()
         self.tab_c.setRowCount(n); self.tab_c.setColumnCount(k + 1)
         self.tab_c.setHorizontalHeaderLabels([f"v{j+1}" for j in range(k)] + ["b"])
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
         for i in range(n):
             for j in range(k + 1):
                 item = QTableWidgetItem("0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(align_center)
                 self.tab_c.setItem(i, j, item)
 
     def eval_comb(self):
@@ -367,9 +381,6 @@ class InterfazPrograma3(QMainWindow):
             self.txt_res_c.setHtml(f"<h3>Resultado:</h3>{res}<br><b>Pasos:</b><br>" + "<br>".join(pasos))
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
-    # --------------------------------------------------------------------------
-    # PESTAÑA 4: ECUACIONES MATRICIALES (Ax = b)
-    # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
     # PESTAÑA 4: ECUACIONES MATRICIALES (Ax = b) - ESTRUCTURA DIVIDIDA
     # --------------------------------------------------------------------------
@@ -413,14 +424,14 @@ class InterfazPrograma3(QMainWindow):
         self.txt_pasos_e = QTextEdit()
         self.txt_pasos_e.setReadOnly(True)
         l_pasos.addWidget(self.txt_pasos_e)
-        panel_derecho.addWidget(grp_pasos, 6)  # Proporción vertical
+        panel_derecho.addWidget(grp_pasos, 6)
 
         grp_res = QGroupBox("4. Resultados, Pivotes y Solución Final")
         l_res = QVBoxLayout(grp_res)
         self.txt_sol_e = QTextEdit()
         self.txt_sol_e.setReadOnly(True)
         l_res.addWidget(self.txt_sol_e)
-        panel_derecho.addWidget(grp_res, 4)   # Proporción vertical
+        panel_derecho.addWidget(grp_res, 4)
 
         # Ensamblar paneles
         layout_principal.addLayout(panel_izquierdo, 4)
@@ -436,13 +447,8 @@ class InterfazPrograma3(QMainWindow):
             A = [fila[:n] for fila in mat]
             b = [fila[n] for fila in mat]
             
-            # Ejecutar lógica backend
             _, pasos, res = resolver_ecuacion_matricial(A, b)
-            
-            # Mostrar el procedimiento paso a paso arriba
             self.txt_pasos_e.setHtml("<b>Pasos de Reducción:</b><br><br>" + "<br><br>".join(pasos))
-            
-            # Mostrar pivotes y solución final abajo
             self.txt_sol_e.setHtml(f"<h3>Resumen de la Solución:</h3>{res}")
             
         except Exception as e:
@@ -452,10 +458,123 @@ class InterfazPrograma3(QMainWindow):
         m, n = self.spin_m_e.value(), self.spin_n_e.value()
         self.tab_e.setRowCount(m); self.tab_e.setColumnCount(n + 1)
         self.tab_e.setHorizontalHeaderLabels([f"x{j+1}" for j in range(n)] + ["b"])
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
         for i in range(m):
             for j in range(n + 1):
                 item = QTableWidgetItem("0")
-                item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
+                item.setTextAlignment(align_center)
                 self.tab_e.setItem(i, j, item)
 
-    
+    # --------------------------------------------------------------------------
+    # PESTAÑA 5: PROPIEDADES DEL PRODUCTO MATRIZ-VECTOR Ax
+    # --------------------------------------------------------------------------
+    def tab_propiedades_ax(self):
+        w = QWidget()
+        l_main = QHBoxLayout(w)
+
+        p_izq = QVBoxLayout()
+        grp_dim = QGroupBox("1. Dimensiones de la Matriz A [m × n]")
+        l_dim = QHBoxLayout(grp_dim)
+        l_dim.addWidget(QLabel("Filas (m):"))
+        self.spin_m_prop = QSpinBox()
+        self.spin_m_prop.setRange(1, 100)
+        self.spin_m_prop.setValue(3)
+        l_dim.addWidget(self.spin_m_prop)
+
+        l_dim.addWidget(QLabel("Columnas (n):"))
+        self.spin_n_prop = QSpinBox()
+        self.spin_n_prop.setRange(1, 100)
+        self.spin_n_prop.setValue(3)
+        l_dim.addWidget(self.spin_n_prop)
+
+        btn_gen = QPushButton("Generar Tablas")
+        btn_gen.clicked.connect(self.gen_propiedades_ax)
+        l_dim.addWidget(btn_gen)
+        p_izq.addWidget(grp_dim)
+
+        grp_entradas = QGroupBox("2. Matriz A, Vectores u, v y Escalar c")
+        l_entradas = QVBoxLayout(grp_entradas)
+        self.tab_A_prop = QTableWidget()
+        l_entradas.addWidget(QLabel("Matriz A (m × n):"))
+        l_entradas.addWidget(self.tab_A_prop)
+
+        layout_vecs = QHBoxLayout()
+        v_u, v_v = QVBoxLayout(), QVBoxLayout()
+        self.tab_u_prop, self.tab_v_prop = QTableWidget(), QTableWidget()
+        v_u.addWidget(QLabel("Vector u (n × 1):"))
+        v_u.addWidget(self.tab_u_prop)
+        v_v.addWidget(QLabel("Vector v (n × 1):"))
+        v_v.addWidget(self.tab_v_prop)
+        layout_vecs.addLayout(v_u)
+        layout_vecs.addLayout(v_v)
+        l_entradas.addLayout(layout_vecs)
+
+        layout_esc = QHBoxLayout()
+        layout_esc.addWidget(QLabel("Escalar (c):"))
+        self.spin_c_prop = QDoubleSpinBox()
+        self.spin_c_prop.setRange(-100, 100)
+        self.spin_c_prop.setValue(2.0)
+        layout_esc.addWidget(self.spin_c_prop)
+        l_entradas.addLayout(layout_esc)
+        p_izq.addWidget(grp_entradas)
+
+        btn_verificar = QPushButton("Verificar Propiedades A(u + v) y A(c·u)")
+        btn_verificar.clicked.connect(self.res_propiedades_ax)
+        p_izq.addWidget(btn_verificar)
+
+        p_der = QVBoxLayout()
+        self.txt_pasos_prop = QTextEdit()
+        self.txt_pasos_prop.setReadOnly(True)
+        self.txt_sol_prop = QTextEdit()
+        self.txt_sol_prop.setReadOnly(True)
+
+        grp_pasos = QGroupBox("3. Comprobación Paso a Paso")
+        QVBoxLayout(grp_pasos).addWidget(self.txt_pasos_prop)
+        grp_res = QGroupBox("4. Dictamen Final del Teorema")
+        QVBoxLayout(grp_res).addWidget(self.txt_sol_prop)
+
+        p_der.addWidget(grp_pasos, 6)
+        p_der.addWidget(grp_res, 4)
+
+        l_main.addLayout(p_izq, 5)
+        l_main.addLayout(p_der, 5)
+
+        self.gen_propiedades_ax()
+        return w
+
+    def gen_propiedades_ax(self):
+        m, n = self.spin_m_prop.value(), self.spin_n_prop.value()
+        self._fill_mat(self.tab_A_prop, m, n)
+        self.tab_A_prop.setHorizontalHeaderLabels([f"x{j+1}" for j in range(n)])
+        self._fill_mat(self.tab_u_prop, n, 1)
+        self.tab_u_prop.setHorizontalHeaderLabels(["u"])
+        self._fill_mat(self.tab_v_prop, n, 1)
+        self.tab_v_prop.setHorizontalHeaderLabels(["v"])
+
+    def res_propiedades_ax(self):
+        try:
+            n = self.spin_n_prop.value()
+            A = self._get_mat(self.tab_A_prop)
+            u = [
+                float(
+                    self.tab_u_prop.item(i, 0).text()
+                    if self.tab_u_prop.item(i, 0)
+                    else 0
+                )
+                for i in range(n)
+            ]
+            v = [
+                float(
+                    self.tab_v_prop.item(i, 0).text()
+                    if self.tab_v_prop.item(i, 0)
+                    else 0
+                )
+                for i in range(n)
+            ]
+            c = float(self.spin_c_prop.value())
+
+            pasos_html, resumen_html = verificar_propiedades_ax(A, u, v, c)
+            self.txt_pasos_prop.setHtml(pasos_html)
+            self.txt_sol_prop.setHtml(resumen_html)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
