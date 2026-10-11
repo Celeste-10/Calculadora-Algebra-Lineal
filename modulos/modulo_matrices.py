@@ -446,24 +446,67 @@ def verificar_propiedades_transpuesta(A, B, r):
 
 def verificar_propiedades_inversa_pasos(A, B, r=2.0):
     """
-    Calcula A⁻¹ y B⁻¹ (por Gauss-Jordan y por Matriz Adjunta) y demuestra 
-    las 5 Propiedades Principales de la Inversa en el mismo reporte.
+    Calcula A⁻¹ y B⁻¹ (mostrando la Inversa Directa de A y B en una sección inicial),
+    desglosa por Gauss-Jordan y Matriz Adjunta, comprueba A · A⁻¹ = I y demuestra las propiedades.
     """
-    html = "<h2>1. Cálculo de Inversas (Gauss-Jordan y Matriz Adjunta)</h2>"
+    # 1. Obtener Inversas
+    (invA_gj, invB_gj), html_gj = inversas_ambas_matrices_pasos(A, B)
+
+    # --------------------------------------------------------------------------
+    # SECCIÓN DESTACADA: RESUMEN DIRECTO DE LAS INVERSAS DE A Y B
+    # --------------------------------------------------------------------------
+    html = "<div style='background-color:#EBF5FB; border:2px solid #3498DB; border-radius:8px; padding:12px; margin-bottom:20px; text-align:left;'>"
+    html += "<h2 style='color:#1B4F72; margin-top:0px; border-bottom:1px solid #3498DB; padding-bottom:5px;'>RESULTADO DIRECTO: MATRICES INVERSAS (A⁻¹ y B⁻¹)</h2>"
     
-    # Inversa de A y B usando la función existente
-    (invA, invB), html_inversas = inversas_ambas_matrices_pasos(A, B)
-    html += html_inversas
+    if invA_gj is not None:
+        html += formato_matriz_html(invA_gj, "Matriz Inversa A⁻¹:")
+    else:
+        html += "<p style='color:#C0392B;'><b>Matriz A:</b> No es invertible (det = 0 o no es cuadrada).</p>"
+
+    if invB_gj is not None:
+        html += formato_matriz_html(invB_gj, "Matriz Inversa B⁻¹:")
+    else:
+        html += "<p style='color:#C0392B;'><b>Matriz B:</b> No es invertible (det = 0 o no es cuadrada).</p>"
+        
+    html += "</div>"
+
+    # --------------------------------------------------------------------------
+    # DESGLOSE COMPLETO POR MÉTODOS Y TEOREMAS
+    # --------------------------------------------------------------------------
+    html += "<h2>1. CÁLCULO DETALLADO DE INVERSAS (GAUSS-JORDAN Y MATRIZ ADJUNTA)</h2>"
+    
+    # Cálculo por Gauss-Jordan
+    html += "<h3>A. Método de Gauss-Jordan [M | I]:</h3>" + html_gj
+    html += "<hr style='border: 1px dashed #3498DB; margin: 20px 0;'>"
+
+    # Cálculo por Matriz Adjunta
+    html += "<h3>B. Método de la Matriz Adjunta M⁻¹ = (1/det(M))·Adj(M):</h3>"
+    invA_adj, htmlA_adj = obtener_inversa_adjunta(A, "A")
+    invB_adj, htmlB_adj = obtener_inversa_adjunta(B, "B")
+    html += htmlA_adj + "<br>" + htmlB_adj
     html += "<hr style='border: 2px solid #4A90E2; margin: 20px 0;'>"
-    
-    html += "<h2>2. Verificación de las Propiedades Principales de la Inversa</h2>"
-    
-    if invA is None or invB is None:
-        html += "<p style='color:#C0392B;'><b>Nota:</b> Ambas matrices deben ser cuadradas e invertibles para demostrar todas las propiedades de la inversa.</p>"
-        return (invA, invB), html
+
+    html += "<h2>2. VERIFICACIÓN DE PROPIEDADES DE LA INVERSA</h2>"
+
+    if invA_gj is None or invB_gj is None:
+        html += "<p style='color:#C0392B;'><b>Nota:</b> Ambas matrices deben ser cuadradas e invertibles para verificar todas las propiedades.</p>"
+        return (invA_gj, invB_gj), html
+
+    # --- Propiedad A · A⁻¹ = I ---
+    A_invA = multiplicar_matrices(A, invA_gj)
+    invA_A = multiplicar_matrices(invA_gj, A)
+    In = crear_matriz_identidad(len(A))
+
+    cumple_I = son_matrices_iguales(A_invA, In) and son_matrices_iguales(invA_A, In)
+
+    html += "<h3>Propiedad Fundamental: A &middot; A⁻¹ = A⁻¹ &middot; A = I</h3>"
+    html += formato_matriz_html(A_invA, "Lado Izquierdo: A &middot; A⁻¹")
+    html += formato_matriz_html(invA_A, "Lado Derecho: A⁻¹ &middot; A")
+    html += formato_matriz_html(In, "Matriz Identidad I:")
+    html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE (A &middot; A⁻¹ = I)</b>' if cumple_I else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
 
     # --- Propiedad 1: (A⁻¹)⁻¹ = A ---
-    inv_invA, _ = _procesar_inversa_individual(invA, "A⁻¹")
+    inv_invA, _ = _procesar_inversa_individual(invA_gj, "A⁻¹")
     cumple_p1 = son_matrices_iguales(inv_invA, A) if inv_invA else False
     html += "<h3>1. Inversa de la Inversa: (A⁻¹)⁻¹ = A</h3>"
     html += formato_matriz_html(inv_invA, "(A⁻¹)⁻¹") if inv_invA else ""
@@ -473,30 +516,30 @@ def verificar_propiedades_inversa_pasos(A, B, r=2.0):
     try:
         AB = multiplicar_matrices(A, B)
         inv_AB, _ = _procesar_inversa_individual(AB, "AB")
-        invB_invA = multiplicar_matrices(invB, invA)
+        invB_invA = multiplicar_matrices(invB_gj, invA_gj)
         cumple_p2 = son_matrices_iguales(inv_AB, invB_invA) if inv_AB else False
         html += "<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3>"
         html += formato_matriz_html(inv_AB, "(AB)⁻¹") if inv_AB else ""
         html += formato_matriz_html(invB_invA, "B⁻¹ A⁻¹")
         html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p2 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
     except Exception as e:
-        html += f"<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3><p style='color:#7F8C8D;'>Incompatible por dimensiones: {e}</p><hr>"
+        html += f"<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3><p style='color:#7F8C8D;'>Incompatible: {e}</p><hr>"
 
     # --- Propiedad 3: (Aᵀ)⁻¹ = (A⁻¹)ᵀ ---
     AT = obtener_transpuesta(A)
     inv_AT, _ = _procesar_inversa_individual(AT, "Aᵀ")
-    invA_T = obtener_transpuesta(invA)
+    invA_T = obtener_transpuesta(invA_gj)
     cumple_p3 = son_matrices_iguales(inv_AT, invA_T) if inv_AT else False
     html += "<h3>3. Inversa de la Transpuesta: (Aᵀ)⁻¹ = (A⁻¹)ᵀ</h3>"
     html += formato_matriz_html(inv_AT, "(Aᵀ)⁻¹") if inv_AT else ""
     html += formato_matriz_html(invA_T, "(A⁻¹)ᵀ")
     html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p3 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
 
-    # --- Propiedad 4: (kA)⁻¹ = (1/k) A⁻¹ con k = r ---
+    # --- Propiedad 4: (kA)⁻¹ = (1/k) A⁻¹ ---
     if r != 0:
         rA = escalar_por_matriz(r, A)
         inv_rA, _ = _procesar_inversa_individual(rA, f"{r}A")
-        inv_r_invA = escalar_por_matriz(1.0 / r, invA)
+        inv_r_invA = escalar_por_matriz(1.0 / r, invA_gj)
         cumple_p4 = son_matrices_iguales(inv_rA, inv_r_invA) if inv_rA else False
         html += f"<h3>4. Inversa de un Escalar: ({r}A)⁻¹ = (1/{r}) A⁻¹</h3>"
         html += formato_matriz_html(inv_rA, f"({r}A)⁻¹") if inv_rA else ""
@@ -505,7 +548,7 @@ def verificar_propiedades_inversa_pasos(A, B, r=2.0):
 
     # --- Propiedad 5: det(A⁻¹) = 1 / det(A) ---
     detA = determinante_cofactores(A)
-    det_invA = determinante_cofactores(invA)
+    det_invA = determinante_cofactores(invA_gj)
     inv_detA = 1.0 / detA if detA != 0 else 0
     cumple_p5 = abs(det_invA - inv_detA) < 1e-6
     html += "<h3>5. Determinante de la Inversa: det(A⁻¹) = 1 / det(A)</h3>"
@@ -513,7 +556,7 @@ def verificar_propiedades_inversa_pasos(A, B, r=2.0):
     html += f"&bull; 1 / det(A) = 1 / ({decimal_a_fraccion(detA)}) = <b>{decimal_a_fraccion(inv_detA)}</b></p>"
     html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p5 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p>"
 
-    return (invA, invB), html
+    return (invA_gj, invB_gj), html
 
 def determinante_triangular_pasos(A):
     """
@@ -636,3 +679,43 @@ def verificar_propiedades_guia_tarea5(A, B, k_escalar=2.0):
     html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if p6 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p>"
 
     return html
+
+def obtener_inversa_adjunta(M, nombre="A"):
+    """
+    Calcula la matriz inversa mediante el método de la Matriz Adjunta:
+    M⁻¹ = (1 / det(M)) · Adj(M) = (1 / det(M)) · (Cᵀ)
+    """
+    from modulos.modulo_determinantes import determinante_cofactores, calcular_submatriz
+    mM, nM = len(M), len(M[0])
+    if mM != nM:
+        return None, f"<p style='color:#C0392B;'><b>✘ ERROR:</b> La matriz {nombre} no es cuadrada.</p>"
+
+    detM = determinante_cofactores(M)
+    if abs(detM) < 1e-9:
+        return None, f"<p style='color:#C0392B;'><b>✘ DICTAMEN:</b> det({nombre}) = 0. La matriz no es invertible.</p>"
+
+    # Matriz de cofactores C
+    C = []
+    for i in range(mM):
+        fila_c = []
+        for j in range(nM):
+            submat = calcular_submatriz(M, i, j)
+            det_sub = determinante_cofactores(submat)
+            signo = (-1) ** (i + j)
+            fila_c.append(signo * det_sub)
+        C.append(fila_c)
+
+    # Matriz Adjunta: Transpuesta de C (Adj(M) = Cᵀ)
+    adjM = [[C[j][i] for j in range(mM)] for i in range(nM)]
+
+    # Inversa: (1 / detM) * Adj(M)
+    invM = [[adjM[i][j] / detM for j in range(nM)] for i in range(mM)]
+
+    html = f"<h4>Inversa de {nombre} por Método de la Matriz Adjunta:</h4>"
+    html += f"<p>&bull; <b>det({nombre}) = {decimal_a_fraccion(detM)}</b></p>"
+    html += formato_matriz_html(C, f"Matriz de Cofactores C de {nombre}:")
+    html += formato_matriz_html(adjM, f"Matriz Adjunta Adj({nombre}) = Cᵀ:")
+    html += f"<p>&bull; <b>Fórmula:</b> {nombre}⁻¹ = (1 / {decimal_a_fraccion(detM)}) &middot; Adj({nombre})</p>"
+    html += formato_matriz_html(invM, f"Matriz Inversa Resultante {nombre}⁻¹:")
+
+    return invM, html
