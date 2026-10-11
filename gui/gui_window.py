@@ -182,10 +182,6 @@ class VentanaPrincipal(QMainWindow):
         self.stacked_widget.addWidget(self.pagina_inicio)      # Índice 0
         self.stacked_widget.addWidget(self.pagina_calculadora) # Índice 1
         self.stacked_widget.addWidget(self.pagina_teoremas)    # índice 2
-
-    # --------------------------------------------------------------------------
-    # PANTALLA DE INICIO / MENÚ PRINCIPAL
-    # --------------------------------------------------------------------------
     # --------------------------------------------------------------------------
     # PANTALLA DE INICIO / MENÚ PRINCIPAL
     # --------------------------------------------------------------------------
@@ -555,7 +551,7 @@ class VentanaPrincipal(QMainWindow):
         b_prop_trans = QPushButton("Propiedades Transpuesta")
         b_prop_trans.clicked.connect(self.calc_propiedades_transpuesta)
 
-        b_det_cramer = QPushButton("Determinantes y Cramer")
+        b_det_cramer = QPushButton("Determinantes (Cofactores y Sarrus)")
         b_det_cramer.clicked.connect(self.calc_det_cramer)
 
         b_verificador = QPushButton("Verificador de Propiedades")
@@ -650,7 +646,7 @@ class VentanaPrincipal(QMainWindow):
             self.txt_res_vec.setPlainText(f"Error: {str(e)}")
 
     # --------------------------------------------------------------------------
-    # PESTAÑA 3: COMBINACIONES LINEALES
+    # PESTAÑA 3: ECUACION Ax=b
     # --------------------------------------------------------------------------
     def tab_ecuaciones(self):
         w = QWidget()
@@ -683,6 +679,10 @@ class VentanaPrincipal(QMainWindow):
         btn_res = QPushButton("Resolver Ax = b")
         btn_res.clicked.connect(self.res_eq)
         panel_izquierdo.addWidget(btn_res)
+
+        btn_cramer = QPushButton("Regla de Cramer")
+        btn_cramer.clicked.connect(self.res_eq_cramer)
+        panel_izquierdo.addWidget(btn_cramer)
 
         # Panel Derecho: Salidas divididas
         panel_derecho = QVBoxLayout()
@@ -772,7 +772,7 @@ class VentanaPrincipal(QMainWindow):
         except Exception as e: QMessageBox.critical(self, "Error", str(e))
 
     # --------------------------------------------------------------------------
-    # PESTAÑA 4: ECUACIONES MATRICIALES (Ax = b) - ESTRUCTURA DIVIDIDA
+    # PESTAÑA 4: COMBINACION LINEAL
     # --------------------------------------------------------------------------
     def tab_propiedades_ax(self):
         w = QWidget()
@@ -932,15 +932,17 @@ class VentanaPrincipal(QMainWindow):
             QMessageBox.critical(self, "Error", str(e))
 
     def calc_det_cramer(self):
+        """Calcula Cofactores y Sarrus para las 3 matrices (A, B y C)."""
         try:
-            from modulos.modulo_determinantes import reporte_determinantes_y_cramer
+            from modulos.modulo_determinantes import reporte_determinantes_tres_matrices
             A = self._get_mat(self.tabA)
             B = self._get_mat(self.tabB)
+            C = self._get_mat(self.tabC)
             
-            pasos = reporte_determinantes_y_cramer(A, B)
-            self.txt_res_mat.setHtml(pasos)
+            html = reporte_determinantes_tres_matrices(A, B, C)
+            self.txt_res_mat.setHtml(html)
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error", f"Error al calcular determinantes: {str(e)}")
 
     def calc_verificador_propiedades(self):
         """Ejecuta la comprobación paso a paso de las 6 propiedades exigidas en la Guía 5."""
@@ -955,3 +957,21 @@ class VentanaPrincipal(QMainWindow):
             self.txt_res_mat.setHtml(html)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Error en el Verificador: {str(e)}")
+
+    def res_eq_cramer(self):
+        """Lee A y b directamente de la tabla de la pestaña Ecuación Ax = b y resuelve por Cramer."""
+        try:
+            from modulos.modulo_determinantes import resolver_cramer_pestaña_sistemas_pasos
+            m, n = self.spin_m_e.value(), self.spin_n_e.value()
+            mat = self._get_mat(self.tab_e)
+            
+            # Extrae A (columnas 0 a n-1) y b (columna n) directamente de la tabla cargada
+            A = [fila[:n] for fila in mat]
+            b = [fila[n] for fila in mat]
+            
+            pasos_html, res_html = resolver_cramer_pestaña_sistemas_pasos(A, b)
+            self.txt_pasos_e.setHtml(pasos_html)
+            self.txt_sol_e.setHtml(res_html)
+            
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
