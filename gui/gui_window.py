@@ -187,37 +187,49 @@ class VentanaPrincipal(QMainWindow):
     # --------------------------------------------------------------------------
     def crear_pantalla_inicio(self):
         widget = QWidget()
-        layout = QVBoxLayout(widget)  # Asigna directamente el layout al widget principal
+        layout_principal = QVBoxLayout(widget)
         
-        # Definición de alineación para evitar NameError
-        align_center = Qt.AlignmentFlag.AlignCenter
-        layout.setAlignment(align_center)
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
 
-        # --- LOGO EN IMAGEN ---
+        # Márgenes exteriores reducidos para que todo suba hacia la parte superior
+        layout_principal.setContentsMargins(20, 15, 20, 10)
+        layout_principal.setSpacing(0)
+
+        # Contenedor interno donde se agrupa todo
+        contenedor_centro = QWidget()
+        layout_centro = QVBoxLayout(contenedor_centro)
+        layout_centro.setContentsMargins(0, 0, 0, 0)
+        layout_centro.setSpacing(5) # Espacio vertical muy pequeño entre logo, texto y caja
+        layout_centro.setAlignment(align_center)
+
+        # --- LOGO EN IMAGEN (TAMAÑO AUMENTADO) ---
         lbl_logo = QLabel()
         pixmap = QPixmap("assets/MatrixX.png")
         
         if not pixmap.isNull():
-            lbl_logo.setPixmap(pixmap.scaledToWidth(420, Qt.TransformationMode.SmoothTransformation))
+            # Aumentamos el tamaño a 520px para que luzca grande
+            lbl_logo.setPixmap(pixmap.scaledToWidth(450, Qt.TransformationMode.SmoothTransformation))
         else:
-            lbl_logo.setText("MatrixX")  # Texto de respaldo si no encuentra la imagen
-            lbl_logo.setFont(QFont("Georgia", 36, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
+            lbl_logo.setText("MatrixX")
+            lbl_logo.setFont(QFont("Georgia", 42, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
         
         lbl_logo.setAlignment(align_center)
-        lbl_logo.setStyleSheet("background: transparent;")
-        layout.addWidget(lbl_logo)
+        lbl_logo.setStyleSheet("background: transparent; padding: 0px; margin: 0px;")
+        layout_centro.addWidget(lbl_logo)
 
         # --- SUBTÍTULO ---
         lbl_subtitulo = QLabel("Calculadora y Solucionador Modular")
-        lbl_subtitulo.setFont(QFont("Segoe UI", 13))
-        lbl_subtitulo.setStyleSheet("color: #7F8C8D; margin-bottom: 25px;")
+        lbl_subtitulo.setFont(QFont("Segoe UI", 12))
+        lbl_subtitulo.setStyleSheet("color: #7F8C8D; margin-top: -5px; margin-bottom: 10px;")
         lbl_subtitulo.setAlignment(align_center)
+        layout_centro.addWidget(lbl_subtitulo)
 
-        # Panel para los botones del menú
+        # --- PANEL DE BOTONES DEL MENÚ ---
         group_box = QGroupBox("Selecciona un Módulo para comenzar:")
         group_box.setFixedWidth(480)
         box_layout = QVBoxLayout()
-        box_layout.setSpacing(12)
+        box_layout.setSpacing(8)
+        box_layout.setContentsMargins(15, 12, 15, 12)
 
         # Botones de módulos
         btn_sistemas = QPushButton("1. Sistemas de Ecuaciones Lineales (Ax = b)")
@@ -227,28 +239,26 @@ class VentanaPrincipal(QMainWindow):
         btn_teoremas = QPushButton("5. Resumen de Teoremas y Fundamentos")
 
         botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_teoremas]
-
-        mapa_pestanas = [3, 0, 1, 2]  # Pestañas correspondientes a los primeros 4 botones
+        mapa_pestanas = [3, 0, 1, 2]
 
         for idx, btn in enumerate(botones):
-            btn.setFixedHeight(45)
+            btn.setFixedHeight(40)
             btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
             
-            # Si es uno de los 4 primeros botones (módulos de calculadora)
             if idx < 4:
                 target_tab = mapa_pestanas[idx]
                 btn.clicked.connect(lambda _, tab=target_tab: self.abrir_modulo(tab))
             else:
-                # Si es el 5º botón (Resumen de Teoremas), cambia directamente al Índice 2 del StackedWidget
                 btn.clicked.connect(lambda: self.stacked_widget.setCurrentIndex(2))
                 
             box_layout.addWidget(btn)
 
         group_box.setLayout(box_layout)
+        layout_centro.addWidget(group_box, alignment=align_center)
 
-        # Añadir los componentes al layout principal
-        layout.addWidget(lbl_subtitulo)
-        layout.addWidget(group_box, alignment=align_center)
+        # Agregar el grupo completo arriba y el stretch al final
+        layout_principal.addWidget(contenedor_centro)
+        layout_principal.addStretch(1) # Absorbe el espacio vacío del fondo y sube el contenido
 
         return widget
     def abrir_modulo(self, indice_pestana):
