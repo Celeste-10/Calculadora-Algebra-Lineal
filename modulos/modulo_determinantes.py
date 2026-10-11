@@ -101,7 +101,8 @@ def reporte_determinantes_tres_matrices(A, B, C):
 def resolver_cramer_pestaña_sistemas_pasos(A, b):
     """
     Exclusivo para la pestaña 'Ecuación Ax = b':
-    Lee directamente A y b del sistema ingresado y resuelve por Cramer paso a paso estilo pizarra.
+    Lee directamente A y b del sistema ingresado y resuelve por Cramer paso a paso estilo pizarra,
+    desglosando detalladamente el determinante principal |A| y los determinantes modificados.
     """
     mA, nA = len(A), len(A[0])
     html = "<div style='text-align: left; font-size: 13px;'>"
@@ -113,14 +114,29 @@ def resolver_cramer_pestaña_sistemas_pasos(A, b):
 
     detA = determinante_cofactores(A)
 
-    # Paso 1: Determinante Principal |A|
-    html += "<h3>1. Determinante Principal |A|:</h3>"
+    # Paso 1: Determinante Principal |A| desglosado paso a paso
+    html += "<h3>1. Determinante Principal |A| (Desglose por Cofactores de la Fila 1):</h3>"
+    
     if nA == 2:
         d1 = A[0][0] * A[1][1]
         d2 = A[0][1] * A[1][0]
-        html += f"<p>&bull; |A| = ({decimal_a_fraccion(A[0][0])})({decimal_a_fraccion(A[1][1])}) - ({decimal_a_fraccion(A[0][1])})({decimal_a_fraccion(A[1][0])}) = ({decimal_a_fraccion(d1)}) - ({decimal_a_fraccion(d2)}) = <b style='font-size:15px; color:#1B4F72;'>{decimal_a_fraccion(detA)}</b></p>"
+        html += f"<p style='font-family:Consolas, monospace;'>&bull; |A| = ({decimal_a_fraccion(A[0][0])})({decimal_a_fraccion(A[1][1])}) - ({decimal_a_fraccion(A[0][1])})({decimal_a_fraccion(A[1][0])}) = ({decimal_a_fraccion(d1)}) - ({decimal_a_fraccion(d2)}) = <b style='font-size:15px; color:#1B4F72;'>{decimal_a_fraccion(detA)}</b></p>"
     else:
-        html += f"<p>&bull; |A| por Cofactores = <b style='font-size:15px; color:#1B4F72;'>{decimal_a_fraccion(detA)}</b></p>"
+        html += "<ul style='line-height: 1.6; margin-left: 15px;'>"
+        terminos_pasos_A = []
+        for j in range(nA):
+            elem = A[0][j]
+            signo = (-1) ** (0 + j)
+            signo_str = "+" if signo > 0 else "-"
+            submat = calcular_submatriz(A, 0, j)
+            det_sub = determinante_cofactores(submat)
+            cofactor_val = signo * det_sub
+            
+            html += f"<li><b>Elemento a₁{j+1} = {decimal_a_fraccion(elem)}:</b> Signo (-1)¹⁺{j+1} = {signo_str}1 | Menor det(M₁{j+1}) = {decimal_a_fraccion(det_sub)} | Cofactor C₁{j+1} = {decimal_a_fraccion(cofactor_val)}</li>"
+            terminos_pasos_A.append(f"({decimal_a_fraccion(elem)} × {decimal_a_fraccion(cofactor_val)})")
+        
+        suma_expr = ' + '.join(terminos_pasos_A)
+        html += f"</ul><p><b>Suma de Cofactores:</b> |A| = {suma_expr} = <b style='font-size:15px; color:#1B4F72;'>{decimal_a_fraccion(detA)}</b></p>"
 
     if abs(detA) < 1e-9:
         html += "<blockquote style='background-color:#FDEDEC; border-left:4px solid #C0392B; padding:10px;'>"
@@ -129,7 +145,7 @@ def resolver_cramer_pestaña_sistemas_pasos(A, b):
         html += "</blockquote></div>"
         return html, "<b style='color:#C0392B;'>|A| = 0. No existe solución única por Cramer.</b>"
 
-    # Paso 2: Desarrollo por variable estilo pizarra
+    # Paso 2: Desarrollo por variable estilo pizarra con desglose de sus determinantes
     html += "<hr style='border:1px solid #BDC3C7;'><h3>2. Determinantes Modificados y Sustitución de Variables:</h3>"
     
     nombres_var = [f"x<sub>{j+1}</sub>" for j in range(nA)]
@@ -157,9 +173,18 @@ def resolver_cramer_pestaña_sistemas_pasos(A, b):
             diag2 = Aj[0][1] * Aj[1][0]
             html += f"<p style='font-family:Consolas, monospace;'>&bull; |A<sub>{var}</sub>| = ({decimal_a_fraccion(Aj[0][0])})({decimal_a_fraccion(Aj[1][1])}) - ({decimal_a_fraccion(Aj[0][1])})({decimal_a_fraccion(Aj[1][0])}) = ({decimal_a_fraccion(diag1)}) - ({decimal_a_fraccion(diag2)}) = <b>{decimal_a_fraccion(detAj)}</b></p>"
         else:
-            html += f"<p>&bull; |A<sub>{var}</sub>| = <b>{decimal_a_fraccion(detAj)}</b></p>"
+            terminos_pasos_Aj = []
+            for col in range(nA):
+                elem = Aj[0][col]
+                signo = (-1) ** (0 + col)
+                submat = calcular_submatriz(Aj, 0, col)
+                det_sub = determinante_cofactores(submat)
+                cofactor_val = signo * det_sub
+                terminos_pasos_Aj.append(f"({decimal_a_fraccion(elem)} × {decimal_a_fraccion(cofactor_val)})")
+            
+            suma_expr_Aj = ' + '.join(terminos_pasos_Aj)
+            html += f"<p>&bull; |A<sub>{var}</sub>| por cofactores = {suma_expr_Aj} = <b>{decimal_a_fraccion(detAj)}</b></p>"
 
-        # Expresión formateada sin llaves de f-string en conflicto
         det_aj_str = decimal_a_fraccion(detAj)
         det_a_str = decimal_a_fraccion(detA)
         xj_str = decimal_a_fraccion(xj)
