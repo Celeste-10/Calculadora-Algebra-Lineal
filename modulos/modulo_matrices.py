@@ -157,9 +157,9 @@ def _procesar_inversa_individual(M, nombre):
     mM, nM = len(M), len(M[0])
     
     if mM != nM:
-        return None, f"<h3>Matriz Inversa de {nombre} ({nombre}⁻¹):</h3><p style='color:#C0392B;'><b>NO EXISTE:</b> La matriz {nombre} no es cuadrada (Dimensión: {mM}x{nM}).</p>"
+        return None, f"<h3>Matriz Inversa de {nombre} ({nombre}⁻¹):</h3><p style='color:#C0392B;'><b>NO EXISTE:</b> La matriz {nombre} no es cuadrada ({mM}x{nM}).</p>"
 
-    # Caso 2x2 con fórmula estéticamente formateada para QTextEdit
+    # Caso 2x2 por fórmula directa
     if mM == 2:
         a, b = M[0][0], M[0][1]
         c, d = M[1][0], M[1][1]
@@ -169,7 +169,7 @@ def _procesar_inversa_individual(M, nombre):
         html += f"<p><b>1. Determinante det({nombre}):</b> ({decimal_a_fraccion(a)})({decimal_a_fraccion(d)}) - ({decimal_a_fraccion(b)})({decimal_a_fraccion(c)}) = <b>{decimal_a_fraccion(det)}</b></p>"
         
         if abs(det) < 1e-9:
-            html += f"<p style='color:#C0392B;'><b>DICTAMEN:</b> det({nombre}) = 0. La matriz {nombre} no es invertible (Es Singular).</p>"
+            html += f"<p style='color:#C0392B;'><b>DICTAMEN:</b> det({nombre}) = 0. La matriz {nombre} no es invertible (Singular).</p>"
             return None, html
             
         inv = [
@@ -177,41 +177,67 @@ def _procesar_inversa_individual(M, nombre):
             [-c / det,  a / det]
         ]
         
-        # Estructura matemática compatible con PyQt
         html += f"""
-        <p><b>2. Aplicando la fórmula para matrices 2x2:</b></p>
-        <blockquote style="font-size: 13px;">
-            <b>Fórmula teórica:</b> {nombre}⁻¹ = (1 / det({nombre})) &middot; [ [d, -b], [-c, a] ]<br><br>
-            <b>Sustituyendo valores:</b> {nombre}⁻¹ = (1 / {decimal_a_fraccion(det)}) &middot; [ [{decimal_a_fraccion(d)}, {decimal_a_fraccion(-b)}], [{decimal_a_fraccion(-c)}, {decimal_a_fraccion(a)}] ]
-        </blockquote>
+        <p><b>2. Aplicando fórmula 2x2:</b></p>
+        <blockquote>{nombre}⁻¹ = (1 / {decimal_a_fraccion(det)}) &middot; [ [{decimal_a_fraccion(d)}, {decimal_a_fraccion(-b)}], [{decimal_a_fraccion(-c)}, {decimal_a_fraccion(a)}] ]</blockquote>
         """
         html += formato_matriz_html(inv, f"Matriz Inversa {nombre}⁻¹")
         return inv, html
 
-    # Caso n x n mediante Método Gauss-Jordan [M | I]
-    matriz_aumentada = []
-    for i in range(mM):
-        fila_I = [1.0 if i == j else 0.0 for j in range(nM)]
-        matriz_aumentada.append(M[i][:] + fila_I)
+    # Caso n x n (3x3, 4x4, etc.) mediante Método Gauss-Jordan [M | I]
+    n = mM
+    # Construir Matriz Aumentada [M | I]
+    A_aug = []
+    for i in range(n):
+        fila_I = [1.0 if i == j else 0.0 for j in range(n)]
+        A_aug.append([float(x) for x in M[i]] + fila_I)
 
-    mat_rref, pasos_log, _ = resolver_gauss_jordan(matriz_aumentada, mM, nM * 2)
+    pasos_log = [formato_matriz_html(A_aug, f"Matriz Aumentada Inicial [{nombre} | I]:")]
 
-    es_invertible = True
-    for i in range(mM):
-        for j in range(nM):
-            if abs(mat_rref[i][j] - (1.0 if i == j else 0.0)) > 1e-9:
-                es_invertible = False
-                break
+    # Algoritmo Gauss-Jordan adaptado a [M | I] (2n columnas)
+    for i in range(n):
+        # 1. Búsqueda de Pivote
+        max_fila = i
+        for k in range(i + 1, n):
+            if abs(A_aug[k][i]) > abs(A_aug[max_fila][i]):
+                max_fila = k
 
-    html = f"<h3>Matriz Inversa de {nombre} ({nombre}⁻¹) por Gauss-Jordan [{nombre} | I]:</h3>"
+        if abs(A_aug[max_fila][i]) < 1e-9:
+            html = f"<h3>Matriz Inversa de {nombre} ({nombre}⁻¹) por Gauss-Jordan [{nombre} | I]:</h3>"
+            html += "<p style='color:#C0392B;'><b>DICTAMEN:</b> La matriz es singular (det = 0). No tiene inversa.</p>"
+            return None, html
+
+        # Intercambiar filas si es necesario
+        if max_fila != i:
+            A_aug[i], A_aug[max_fila] = A_aug[max_fila], A_aug[i]
+            pasos_log.append(formato_matriz_html(A_aug, f"Paso: Intercambiar F<sub>{i+1}</sub> &harr; F<sub>{max_fila+1}</sub>"))
+
+        # 2. Normalizar la fila pivote
+        pivote = A_aug[i][i]
+        if abs(pivote - 1.0) > 1e-9:
+            for j in range(2 * n):
+                A_aug[i][j] /= pivote
+            piv_str = decimal_a_fraccion(pivote)
+            pasos_log.append(formato_matriz_html(A_aug, f"Paso: F<sub>{i+1}</sub> &rarr; F<sub>{i+1}</sub> / ({piv_str})"))
+
+        # 3. Eliminar elementos arriba y abajo del pivote
+        for k in range(n):
+            if k != i:
+                factor = A_aug[k][i]
+                if abs(factor) > 1e-9:
+                    for j in range(2 * n):
+                        A_aug[k][j] -= factor * A_aug[i][j]
+                    signo = "-" if factor > 0 else "+"
+                    abs_fact_str = decimal_a_fraccion(abs(factor))
+                    pasos_log.append(formato_matriz_html(A_aug, f"Paso: F<sub>{k+1}</sub> &rarr; F<sub>{k+1}</sub> {signo} ({abs_fact_str}) &times; F<sub>{i+1}</sub>"))
+
+    # Extraer el bloque derecho que contiene la Inversa
+    inv = [[A_aug[i][j + n] for j in range(n)] for i in range(n)]
+
+    html = f"<h3>Matriz Inversa de {nombre} ({nombre}⁻¹) por Gauss-Jordan [{nombre} | I] ({n}×{n}):</h3>"
     html += "<b>Pasos de reducción por filas:</b><br><br>" + "<br><br>".join(pasos_log) + "<br><br>"
+    html += formato_matriz_html(inv, f"Matriz Inversa Resultante {nombre}⁻¹")
 
-    if not es_invertible:
-        html += f"<p style='color:#C0392B;'><b>DICTAMEN:</b> La matriz {nombre} no es invertible (Es Singular).</p>"
-        return None, html
-
-    inv = [[mat_rref[i][j + nM] for j in range(nM)] for i in range(mM)]
-    html += formato_matriz_html(inv, f"Matriz Inversa {nombre}⁻¹")
     return inv, html
 
 
@@ -446,14 +472,15 @@ def verificar_propiedades_transpuesta(A, B, r):
 
 def verificar_propiedades_inversa_pasos(A, B, r=2.0):
     """
-    Calcula A⁻¹ y B⁻¹ (mostrando la Inversa Directa de A y B en una sección inicial),
-    desglosa por Gauss-Jordan y Matriz Adjunta, comprueba A · A⁻¹ = I y demuestra las propiedades.
+    Calcula A⁻¹ y B⁻¹ para cualquier dimensión (2x2, 3x3, etc.),
+    desglosa por Gauss-Jordan y Matriz Adjunta, comprueba A · A⁻¹ = I
+    y evalúa las propiedades de forma segura.
     """
-    # 1. Obtener Inversas
+    # 1. Obtener Inversas por Gauss-Jordan
     (invA_gj, invB_gj), html_gj = inversas_ambas_matrices_pasos(A, B)
 
     # --------------------------------------------------------------------------
-    # SECCIÓN DESTACADA: RESUMEN DIRECTO DE LAS INVERSAS DE A Y B
+    # SECCIÓN DESTACADA: RESULTADO DIRECTO
     # --------------------------------------------------------------------------
     html = "<div style='background-color:#EBF5FB; border:2px solid #3498DB; border-radius:8px; padding:12px; margin-bottom:20px; text-align:left;'>"
     html += "<h2 style='color:#1B4F72; margin-top:0px; border-bottom:1px solid #3498DB; padding-bottom:5px;'>RESULTADO DIRECTO: MATRICES INVERSAS (A⁻¹ y B⁻¹)</h2>"
@@ -471,90 +498,103 @@ def verificar_propiedades_inversa_pasos(A, B, r=2.0):
     html += "</div>"
 
     # --------------------------------------------------------------------------
-    # DESGLOSE COMPLETO POR MÉTODOS Y TEOREMAS
+    # DESGLOSE POR MÉTODOS
     # --------------------------------------------------------------------------
-    html += "<h2>1. CÁLCULO DETALLADO DE INVERSAS (GAUSS-JORDAN Y MATRIZ ADJUNTA)</h2>"
-    
-    # Cálculo por Gauss-Jordan
+    html += "<h2>1. CÁLCULO DETALLADO DE INVERSAS (GAUSS-JORDAN Y ADJUNTA)</h2>"
     html += "<h3>A. Método de Gauss-Jordan [M | I]:</h3>" + html_gj
     html += "<hr style='border: 1px dashed #3498DB; margin: 20px 0;'>"
 
-    # Cálculo por Matriz Adjunta
     html += "<h3>B. Método de la Matriz Adjunta M⁻¹ = (1/det(M))·Adj(M):</h3>"
-    invA_adj, htmlA_adj = obtener_inversa_adjunta(A, "A")
-    invB_adj, htmlB_adj = obtener_inversa_adjunta(B, "B")
+    _, htmlA_adj = obtener_inversa_adjunta(A, "A")
+    _, htmlB_adj = obtener_inversa_adjunta(B, "B")
     html += htmlA_adj + "<br>" + htmlB_adj
     html += "<hr style='border: 2px solid #4A90E2; margin: 20px 0;'>"
 
-    html += "<h2>2. VERIFICACIÓN DE PROPIEDADES DE LA INVERSA</h2>"
+    html += "<h2>2. VERIFICACIÓN DE PROPIEDADES DE LA INVERSA (MATRIZ A)</h2>"
 
-    if invA_gj is None or invB_gj is None:
-        html += "<p style='color:#C0392B;'><b>Nota:</b> Ambas matrices deben ser cuadradas e invertibles para verificar todas las propiedades.</p>"
-        return (invA_gj, invB_gj), html
+    # --- Comprobaciones individuales para Matriz A ---
+    if invA_gj is not None:
+        nA = len(A)
+        try:
+            A_invA = multiplicar_matrices(A, invA_gj)
+            invA_A = multiplicar_matrices(invA_gj, A)
+            InA = crear_matriz_identidad(nA)  # Matriz identidad dinámica según tamaño de A
+            cumple_I = son_matrices_iguales(A_invA, InA) and son_matrices_iguales(invA_A, InA)
 
-    # --- Propiedad A · A⁻¹ = I ---
-    A_invA = multiplicar_matrices(A, invA_gj)
-    invA_A = multiplicar_matrices(invA_gj, A)
-    In = crear_matriz_identidad(len(A))
+            html += "<h3>Propiedad Fundamental: A &middot; A⁻¹ = A⁻¹ &middot; A = I</h3>"
+            html += formato_matriz_html(A_invA, "Lado Izquierdo: A &middot; A⁻¹")
+            html += formato_matriz_html(invA_A, "Lado Derecho: A⁻¹ &middot; A")
+            html += formato_matriz_html(InA, f"Matriz Identidad I ({nA}×{nA}):")
+            html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE (A &middot; A⁻¹ = I)</b>' if cumple_I else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        except Exception as e:
+            html += f"<p style='color:#C0392B;'>Error al evaluar A · A⁻¹: {e}</p><hr>"
 
-    cumple_I = son_matrices_iguales(A_invA, In) and son_matrices_iguales(invA_A, In)
+        try:
+            inv_invA, _ = _procesar_inversa_individual(invA_gj, "A⁻¹")
+            cumple_p1 = son_matrices_iguales(inv_invA, A) if inv_invA else False
+            html += "<h3>1. Inversa de la Inversa: (A⁻¹)⁻¹ = A</h3>"
+            if inv_invA:
+                html += formato_matriz_html(inv_invA, "(A⁻¹)⁻¹")
+            html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p1 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        except Exception as e:
+            html += f"<p style='color:#C0392B;'>Error en propiedad 1: {e}</p><hr>"
 
-    html += "<h3>Propiedad Fundamental: A &middot; A⁻¹ = A⁻¹ &middot; A = I</h3>"
-    html += formato_matriz_html(A_invA, "Lado Izquierdo: A &middot; A⁻¹")
-    html += formato_matriz_html(invA_A, "Lado Derecho: A⁻¹ &middot; A")
-    html += formato_matriz_html(In, "Matriz Identidad I:")
-    html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE (A &middot; A⁻¹ = I)</b>' if cumple_I else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        try:
+            AT = obtener_transpuesta(A)
+            inv_AT, _ = _procesar_inversa_individual(AT, "Aᵀ")
+            invA_T = obtener_transpuesta(invA_gj)
+            cumple_p3 = son_matrices_iguales(inv_AT, invA_T) if inv_AT else False
+            html += "<h3>3. Inversa de la Transpuesta: (Aᵀ)⁻¹ = (A⁻¹)ᵀ</h3>"
+            if inv_AT:
+                html += formato_matriz_html(inv_AT, "(Aᵀ)⁻¹")
+            html += formato_matriz_html(invA_T, "(A⁻¹)ᵀ")
+            html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p3 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        except Exception as e:
+            html += f"<p style='color:#C0392B;'>Error en propiedad 3: {e}</p><hr>"
 
-    # --- Propiedad 1: (A⁻¹)⁻¹ = A ---
-    inv_invA, _ = _procesar_inversa_individual(invA_gj, "A⁻¹")
-    cumple_p1 = son_matrices_iguales(inv_invA, A) if inv_invA else False
-    html += "<h3>1. Inversa de la Inversa: (A⁻¹)⁻¹ = A</h3>"
-    html += formato_matriz_html(inv_invA, "(A⁻¹)⁻¹") if inv_invA else ""
-    html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p1 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        try:
+            if r != 0:
+                rA = escalar_por_matriz(r, A)
+                inv_rA, _ = _procesar_inversa_individual(rA, f"{r}A")
+                inv_r_invA = escalar_por_matriz(1.0 / r, invA_gj)
+                cumple_p4 = son_matrices_iguales(inv_rA, inv_r_invA) if inv_rA else False
+                html += f"<h3>4. Inversa de un Escalar: ({r}A)⁻¹ = (1/{r}) A⁻¹</h3>"
+                if inv_rA:
+                    html += formato_matriz_html(inv_rA, f"({r}A)⁻¹")
+                html += formato_matriz_html(inv_r_invA, f"(1/{r}) A⁻¹")
+                html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p4 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        except Exception as e:
+            html += f"<p style='color:#C0392B;'>Error en propiedad 4: {e}</p><hr>"
 
-    # --- Propiedad 2: (AB)⁻¹ = B⁻¹ A⁻¹ ---
-    try:
-        AB = multiplicar_matrices(A, B)
-        inv_AB, _ = _procesar_inversa_individual(AB, "AB")
-        invB_invA = multiplicar_matrices(invB_gj, invA_gj)
-        cumple_p2 = son_matrices_iguales(inv_AB, invB_invA) if inv_AB else False
-        html += "<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3>"
-        html += formato_matriz_html(inv_AB, "(AB)⁻¹") if inv_AB else ""
-        html += formato_matriz_html(invB_invA, "B⁻¹ A⁻¹")
-        html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p2 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
-    except Exception as e:
-        html += f"<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3><p style='color:#7F8C8D;'>Incompatible: {e}</p><hr>"
+        try:
+            detA = determinante_cofactores(A)
+            det_invA = determinante_cofactores(invA_gj)
+            inv_detA = 1.0 / detA if detA != 0 else 0
+            cumple_p5 = abs(det_invA - inv_detA) < 1e-6
+            html += "<h3>5. Determinante de la Inversa: det(A⁻¹) = 1 / det(A)</h3>"
+            html += f"<p>&bull; det(A⁻¹) = <b>{decimal_a_fraccion(det_invA)}</b><br>"
+            html += f"&bull; 1 / det(A) = 1 / ({decimal_a_fraccion(detA)}) = <b>{decimal_a_fraccion(inv_detA)}</b></p>"
+            html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p5 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
+        except Exception as e:
+            html += f"<p style='color:#C0392B;'>Error en propiedad 5: {e}</p><hr>"
 
-    # --- Propiedad 3: (Aᵀ)⁻¹ = (A⁻¹)ᵀ ---
-    AT = obtener_transpuesta(A)
-    inv_AT, _ = _procesar_inversa_individual(AT, "Aᵀ")
-    invA_T = obtener_transpuesta(invA_gj)
-    cumple_p3 = son_matrices_iguales(inv_AT, invA_T) if inv_AT else False
-    html += "<h3>3. Inversa de la Transpuesta: (Aᵀ)⁻¹ = (A⁻¹)ᵀ</h3>"
-    html += formato_matriz_html(inv_AT, "(Aᵀ)⁻¹") if inv_AT else ""
-    html += formato_matriz_html(invA_T, "(A⁻¹)ᵀ")
-    html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p3 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
-
-    # --- Propiedad 4: (kA)⁻¹ = (1/k) A⁻¹ ---
-    if r != 0:
-        rA = escalar_por_matriz(r, A)
-        inv_rA, _ = _procesar_inversa_individual(rA, f"{r}A")
-        inv_r_invA = escalar_por_matriz(1.0 / r, invA_gj)
-        cumple_p4 = son_matrices_iguales(inv_rA, inv_r_invA) if inv_rA else False
-        html += f"<h3>4. Inversa de un Escalar: ({r}A)⁻¹ = (1/{r}) A⁻¹</h3>"
-        html += formato_matriz_html(inv_rA, f"({r}A)⁻¹") if inv_rA else ""
-        html += formato_matriz_html(inv_r_invA, f"(1/{r}) A⁻¹")
-        html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p4 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p><hr>"
-
-    # --- Propiedad 5: det(A⁻¹) = 1 / det(A) ---
-    detA = determinante_cofactores(A)
-    det_invA = determinante_cofactores(invA_gj)
-    inv_detA = 1.0 / detA if detA != 0 else 0
-    cumple_p5 = abs(det_invA - inv_detA) < 1e-6
-    html += "<h3>5. Determinante de la Inversa: det(A⁻¹) = 1 / det(A)</h3>"
-    html += f"<p>&bull; det(A⁻¹) = <b>{decimal_a_fraccion(det_invA)}</b><br>"
-    html += f"&bull; 1 / det(A) = 1 / ({decimal_a_fraccion(detA)}) = <b>{decimal_a_fraccion(inv_detA)}</b></p>"
-    html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p5 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p>"
+    # --- Propiedad 2 de Producto de Matrices (AB)⁻¹ = B⁻¹ A⁻¹ ---
+    if invA_gj is not None and invB_gj is not None:
+        if len(A) == len(B) and len(A[0]) == len(B[0]):
+            try:
+                AB = multiplicar_matrices(A, B)
+                inv_AB, _ = _procesar_inversa_individual(AB, "AB")
+                invB_invA = multiplicar_matrices(invB_gj, invA_gj)
+                cumple_p2 = son_matrices_iguales(inv_AB, invB_invA) if inv_AB else False
+                html += "<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3>"
+                if inv_AB:
+                    html += formato_matriz_html(inv_AB, "(AB)⁻¹")
+                html += formato_matriz_html(invB_invA, "B⁻¹ A⁻¹")
+                html += f"<p><b>Dictamen:</b> {'<b style=\"color:#27AE60;\">✔ SE CUMPLE</b>' if cumple_p2 else '<b style=\"color:#C0392B;\">✘ NO SE CUMPLE</b>'}</p>"
+            except Exception as e:
+                html += f"<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3><p style='color:#7F8C8D;'>Incompatible: {e}</p>"
+        else:
+            html += f"<h3>2. Inversa de un Producto: (AB)⁻¹ = B⁻¹ A⁻¹</h3><p style='color:#7F8C8D;'><b>No evaluable:</b> A ({len(A)}×{len(A[0])}) y B ({len(B)}×{len(B[0])}) tienen dimensiones distintas.</p>"
 
     return (invA_gj, invB_gj), html
 

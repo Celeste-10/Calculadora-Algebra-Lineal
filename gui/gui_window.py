@@ -601,8 +601,23 @@ class VentanaPrincipal(QMainWindow):
                 t.setItem(i, j, item)
 
     def _get_mat(self, t):
-        return [[float(t.item(i, j).text() if t.item(i, j) else 0) for j in range(t.columnCount())] for i in range(t.rowCount())]
-
+        filas = t.rowCount()
+        cols = t.columnCount()
+        matriz = []
+        for i in range(filas):
+            fila = []
+            for j in range(cols):
+                item = t.item(i, j)
+                if item and item.text().strip():
+                    try:
+                        val = float(item.text().replace(',', '.'))
+                    except ValueError:
+                        val = 0.0
+                else:
+                    val = 0.0
+                fila.append(val)
+            matriz.append(fila)
+        return matriz
     def calc_sum_mat(self):
         try:
             _, pasos = sumar_matrices_pasos(self._get_mat(self.tabA), self._get_mat(self.tabB))
@@ -935,11 +950,10 @@ class VentanaPrincipal(QMainWindow):
             B = self._get_mat(self.tabB)
             r = float(self.spin_r.value())
             
-            # Ejecuta la inversa y la verificación completa de las 5 propiedades
             _, pasos = verificar_propiedades_inversa_pasos(A, B, r)
             self.txt_res_mat.setHtml(pasos)
         except Exception as e:
-            QMessageBox.critical(self, "Error", str(e))
+            QMessageBox.critical(self, "Error al calcular Inversa", str(e))
 
     def calc_det_cramer(self):
         """Calcula Cofactores y Sarrus para las 3 matrices (A, B y C)."""
