@@ -38,6 +38,10 @@ from modulos.modulo_sistemas import (
     resolver_ecuacion_matricial
 )
 
+from modulos.modulo_lu import (
+    resolver_sistema_lu, factorizacion_lu
+)
+
 from teoremas.resumen_teoremas import PantallaTeoremas
 
 from logica.operaciones import formato_matriz_html
@@ -236,16 +240,17 @@ class VentanaPrincipal(QMainWindow):
         btn_vectores = QPushButton("2. Operaciones con Vectores en Rⁿ")
         btn_matrices = QPushButton("3. Operaciones Matriciales e Inversa")
         btn_determinantes = QPushButton("4. Combinaciones y Propiedades Ax")
-        btn_teoremas = QPushButton("5. Resumen de Teoremas y Fundamentos")
+        btn_lu = QPushButton("5. Factorización LU (A = LU) y Solución Ax = b")
+        btn_teoremas = QPushButton("6. Resumen de Teoremas y Fundamentos")
 
-        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_teoremas]
-        mapa_pestanas = [3, 0, 1, 2]
+        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_lu, btn_teoremas]
+        mapa_pestanas = [3, 0, 1, 2, 5]
 
         for idx, btn in enumerate(botones):
             btn.setFixedHeight(40)
             btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
             
-            if idx < 4:
+            if idx < 5:
                 target_tab = mapa_pestanas[idx]
                 btn.clicked.connect(lambda _, tab=target_tab: self.abrir_modulo(tab))
             else:
@@ -293,6 +298,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabs.addTab(self.tab_combinaciones(), "Combinación Lineal")
         self.tabs.addTab(self.tab_ecuaciones(), "Ecuación Ax = b")
         self.tabs.addTab(self.tab_propiedades_ax(), "Propiedades Ax")
+        self.tabs.addTab(self.tab_lu(), "Factorización LU")
 
         layout_main.addWidget(self.tabs)
         return widget
@@ -997,5 +1003,59 @@ class VentanaPrincipal(QMainWindow):
             self.txt_pasos_e.setHtml(pasos_html)
             self.txt_sol_e.setHtml(res_html)
             
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    # --------------------------------------------------------------------------
+    # PESTAÑA 5: Factorización LU
+    # --------------------------------------------------------------------------
+    def tab_lu(self):
+        w = QWidget(); layout = QHBoxLayout(w); p_izq = QVBoxLayout()
+        grp = QGroupBox("1. Configuración de Matriz A y Vector b para LU")
+        l_grp = QVBoxLayout(grp)
+        
+        ctrl = QHBoxLayout()
+        ctrl.addWidget(QLabel("Dimensión n x n:"))
+        self.spin_n_lu = QSpinBox(); self.spin_n_lu.setRange(1, 10); self.spin_n_lu.setValue(3)
+        ctrl.addWidget(self.spin_n_lu)
+        
+        btn_gen = QPushButton("Generar Tablas")
+        btn_gen.clicked.connect(self.gen_lu)
+        ctrl.addWidget(btn_gen)
+        l_grp.addLayout(ctrl)
+        
+        self.tab_A_lu = QTableWidget()
+        self.tab_b_lu = QTableWidget()
+        l_grp.addWidget(QLabel("Matriz A (n x n):"))
+        l_grp.addWidget(self.tab_A_lu)
+        l_grp.addWidget(QLabel("Vector b (n x 1):"))
+        l_grp.addWidget(self.tab_b_lu)
+        p_izq.addWidget(grp)
+        
+        btn_calc = QPushButton("Obtener Factorización A = LU y Resolver Ax = b")
+        btn_calc.clicked.connect(self.res_lu)
+        p_izq.addWidget(btn_calc)
+        
+        self.txt_res_lu = QTextEdit(); self.txt_res_lu.setReadOnly(True)
+        
+        layout.addLayout(p_izq, 4)
+        layout.addWidget(self.txt_res_lu, 6)
+        
+        self.gen_lu()
+        return w
+
+    def gen_lu(self):
+        n = self.spin_n_lu.value()
+        self._fill_mat(self.tab_A_lu, n, n)
+        self._fill_mat(self.tab_b_lu, n, 1)
+
+    def res_lu(self):
+        try:
+            n = self.spin_n_lu.value()
+            A = self._get_mat(self.tab_A_lu)
+            b = [float(self.tab_b_lu.item(i, 0).text() if self.tab_b_lu.item(i, 0) else 0) for i in range(n)]
+            
+            exito, L, U, y, x, html = resolver_sistema_lu(A, b)
+            self.txt_res_lu.setHtml(html)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
