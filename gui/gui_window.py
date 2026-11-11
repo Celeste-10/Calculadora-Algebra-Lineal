@@ -10,7 +10,8 @@ try:
     from PyQt6.QtWidgets import (
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
         QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
-        QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget, QGraphicsDropShadowEffect
+        QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget, QGraphicsDropShadowEffect,
+        QComboBox, QLineEdit
     )
     from PyQt6.QtGui import QFont, QPixmap
     from PyQt6.QtCore import Qt
@@ -18,10 +19,18 @@ except ImportError:
     from PyQt5.QtWidgets import (
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
         QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
-        QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget
+        QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget, 
+        QComboBox, QLineEdit
     )
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QFont
+
+import math 
+import numpy as np
+import matplotlib
+matplotlib.use('Qt5Agg')  # Configura el backend compatible con PyQt
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
 
 from modulos.modulo_vectores import (
     sumar_vectores_pasos, restar_vectores_pasos, escalar_por_vector_pasos,
@@ -40,6 +49,11 @@ from modulos.modulo_sistemas import (
 
 from modulos.modulo_lu import (
     resolver_sistema_lu, factorizacion_lu
+)
+
+from modulos.modulo_numerico import(
+    algoritmo_biseccion, descomponer_notacion_posicional, calcular_errores_y_propagacion, 
+    evaluar_funcion_segura
 )
 
 from teoremas.resumen_teoremas import PantallaTeoremas
@@ -159,6 +173,12 @@ ESTILO_MODERNO = """
         padding: 8px;
     }
 """
+class CanvasGraficador(FigureCanvas):
+    def __init__(self, parent=None, width=5, height=4, dpi=100):
+        self.fig = Figure(figsize=(width, height), dpi=dpi)
+        self.ax = self.fig.add_subplot(111)
+        super().__init__(self.fig)
+        self.setParent(parent)
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -241,16 +261,17 @@ class VentanaPrincipal(QMainWindow):
         btn_matrices = QPushButton("3. Operaciones Matriciales e Inversa")
         btn_determinantes = QPushButton("4. Combinaciones y Propiedades Ax")
         btn_lu = QPushButton("5. Factorización LU (A = LU) y Solución Ax = b")
-        btn_teoremas = QPushButton("6. Resumen de Teoremas y Fundamentos")
+        btn_numerico = QPushButton("6. Métodos Numéricos (Bisección, Gráficas, Errores)")
+        btn_teoremas = QPushButton("7. Resumen de Teoremas y Fundamentos")
 
-        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_lu, btn_teoremas]
-        mapa_pestanas = [3, 0, 1, 2, 5]
+        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_lu, btn_numerico, btn_teoremas]
+        mapa_pestanas = [3, 0, 1, 2, 5, 6]
 
         for idx, btn in enumerate(botones):
             btn.setFixedHeight(40)
             btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
             
-            if idx < 5:
+            if idx < 6:
                 target_tab = mapa_pestanas[idx]
                 btn.clicked.connect(lambda _, tab=target_tab: self.abrir_modulo(tab))
             else:
@@ -299,6 +320,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabs.addTab(self.tab_ecuaciones(), "Ecuación Ax = b")
         self.tabs.addTab(self.tab_propiedades_ax(), "Propiedades Ax")
         self.tabs.addTab(self.tab_lu(), "Factorización LU")
+        self.tabs.addTab(self.tab_metodos_numericos(), "Métodos Numéricos")
 
         layout_main.addWidget(self.tabs)
         return widget
@@ -1059,3 +1081,280 @@ class VentanaPrincipal(QMainWindow):
             self.txt_res_lu.setHtml(html)
         except Exception as e:
             QMessageBox.critical(self, "Error", str(e))
+
+    # --------------------------------------------------------------------------
+    # PESTAÑA 7: MÉTODOS NUMÉRICOS 
+    # --------------------------------------------------------------------------
+    def tab_metodos_numericos(self):
+        w = QWidget()
+        main_layout = QVBoxLayout(w)
+
+        # Barra Superior: ComboBox Selector de Sub-Módulo
+        top_selector = QHBoxLayout()
+        top_selector.addWidget(QLabel("<b>Seleccionar Herramienta Numérica:</b>"))
+        
+        self.combo_opciones_num = QComboBox()
+        self.combo_opciones_num.addItems([
+            "1. Método de Bisección (Con Tabla de Iteraciones Completa)",
+            "2. Graficador de Funciones (Con Raíz y Restricciones de Dominio)",
+            "3. Notación Posicional (Base 10 y Base 2)",
+            "4. Errores Numéricos y Propagación de Errores"
+        ])
+        top_selector.addWidget(self.combo_opciones_num, 1)
+        main_layout.addLayout(top_selector)
+
+        # StackedWidget Interno para cambiar entre las 4 vistas
+        self.stack_numerico = QStackedWidget()
+
+        self.vista_biseccion = self._crear_vista_biseccion()
+        self.vista_graficador = self._crear_vista_graficador()
+        self.vista_notacion = self._crear_vista_notacion()
+        self.vista_errores = self._crear_vista_errores()
+
+        self.stack_numerico.addWidget(self.vista_biseccion)
+        self.stack_numerico.addWidget(self.vista_graficador)
+        self.stack_numerico.addWidget(self.vista_notacion)
+        self.stack_numerico.addWidget(self.vista_errores)
+
+        self.combo_opciones_num.currentIndexChanged.connect(self.stack_numerico.setCurrentIndex)
+        main_layout.addWidget(self.stack_numerico)
+
+        return w
+
+    # --- 1. SUB-MÓDULO A: BISECCIÓN ---
+    def _crear_vista_biseccion(self):
+        w = QWidget()
+        l = QHBoxLayout(w)
+
+        left = QVBoxLayout()
+        grp = QGroupBox("Parámetros de Entrada para Bisección")
+        gl = QVBoxLayout(grp)
+
+        gl.addWidget(QLabel("Función f(x):"))
+        self.txt_fn_bis = QLineEdit("x**3 - 2*x - 5")
+        gl.addWidget(self.txt_fn_bis)
+
+        ctrl_ab = QHBoxLayout()
+        ctrl_ab.addWidget(QLabel("a (inf):"))
+        self.spin_a_bis = QDoubleSpinBox(); self.spin_a_bis.setRange(-1000, 1000); self.spin_a_bis.setValue(2.0)
+        ctrl_ab.addWidget(self.spin_a_bis)
+
+        ctrl_ab.addWidget(QLabel("b (sup):"))
+        self.spin_b_bis = QDoubleSpinBox(); self.spin_b_bis.setRange(-1000, 1000); self.spin_b_bis.setValue(3.0)
+        ctrl_ab.addWidget(self.spin_b_bis)
+        gl.addLayout(ctrl_ab)
+
+        ctrl_tol = QHBoxLayout()
+        ctrl_tol.addWidget(QLabel("Tolerancia E:"))
+        self.txt_tol_bis = QLineEdit("1e-4")
+        ctrl_tol.addWidget(self.txt_tol_bis)
+
+        ctrl_tol.addWidget(QLabel("Max Iter:"))
+        self.spin_max_iter = QSpinBox(); self.spin_max_iter.setRange(1, 1000); self.spin_max_iter.setValue(100)
+        ctrl_tol.addWidget(self.spin_max_iter)
+        gl.addLayout(ctrl_tol)
+
+        btn_run = QPushButton("Ejecutar Bisección y Generar Tabla")
+        btn_run.clicked.connect(self.ejecutar_biseccion)
+        gl.addWidget(btn_run)
+        left.addWidget(grp)
+
+        self.txt_out_bis = QTextEdit(); self.txt_out_bis.setReadOnly(True)
+        l.addLayout(left, 4)
+        l.addWidget(self.txt_out_bis, 6)
+
+        return w
+
+    def ejecutar_biseccion(self):
+        try:
+            expr_str = self.txt_fn_bis.text().strip()
+            a = float(self.spin_a_bis.value())
+            b = float(self.spin_b_bis.value())
+            tol = float(self.txt_tol_bis.text().strip())
+            max_iter = int(self.spin_max_iter.value())
+
+            exito, html, _, raiz = algoritmo_biseccion(expr_str, a, b, tol, max_iter)
+            self.txt_out_bis.setHtml(html)
+
+            if exito and raiz is not None:
+                self.txt_fn_graf.setText(expr_str)
+                self.spin_xmin_graf.setValue(a - 1.0)
+                self.spin_xmax_graf.setValue(b + 1.0)
+                self.graficar_funcion(marcar_raiz=raiz, a_mark=a, b_mark=b)
+        except Exception as e:
+            QMessageBox.critical(self, "Error en Bisección", str(e))
+
+    # --- 2. SUB-MÓDULO B: GRAFICADOR DE FUNCIONES ---
+    def _crear_vista_graficador(self):
+        w = QWidget()
+        l = QHBoxLayout(w)
+
+        left = QVBoxLayout()
+        grp = QGroupBox("Configuración de Gráfica")
+        gl = QVBoxLayout(grp)
+
+        gl.addWidget(QLabel("Función f(x):"))
+        self.txt_fn_graf = QLineEdit("cos(x) - x")
+        gl.addWidget(self.txt_fn_graf)
+
+        ctrl_lims = QHBoxLayout()
+        ctrl_lims.addWidget(QLabel("x_min:"))
+        self.spin_xmin_graf = QDoubleSpinBox(); self.spin_xmin_graf.setRange(-1000, 1000); self.spin_xmin_graf.setValue(-5.0)
+        ctrl_lims.addWidget(self.spin_xmin_graf)
+
+        ctrl_lims.addWidget(QLabel("x_max:"))
+        self.spin_xmax_graf = QDoubleSpinBox(); self.spin_xmax_graf.setRange(-1000, 1000); self.spin_xmax_graf.setValue(5.0)
+        ctrl_lims.addWidget(self.spin_xmax_graf)
+        gl.addLayout(ctrl_lims)
+
+        btn_graf = QPushButton("Generar Gráfica Interactiva")
+        btn_graf.clicked.connect(lambda: self.graficar_funcion())
+        gl.addWidget(btn_graf)
+        left.addWidget(grp)
+
+        self.canvas_graf = CanvasGraficador(self)
+        l.addLayout(left, 4)
+        l.addWidget(self.canvas_graf, 6)
+
+        return w
+
+    def graficar_funcion(self, marcar_raiz=None, a_mark=None, b_mark=None):
+        try:
+            expr_str = self.txt_fn_graf.text().strip()
+            xmin = float(self.spin_xmin_graf.value())
+            xmax = float(self.spin_xmax_graf.value())
+
+            if xmin >= xmax:
+                QMessageBox.warning(self, "Error", "x_min debe ser estrictamente menor que x_max.")
+                return
+
+            x_vals = np.linspace(xmin, xmax, 1000)
+            y_vals = []
+
+            for x_val in x_vals:
+                y_val = evaluar_funcion_segura(expr_str, x_val)
+                if math.isnan(y_val) or math.isinf(y_val) or abs(y_val) > 1e5:
+                    y_vals.append(np.nan)
+                else:
+                    y_vals.append(y_val)
+
+            y_vals = np.array(y_vals, dtype=float)
+
+            ax = self.canvas_graf.ax
+            ax.clear()
+
+            # Graficar la curva principal
+            ax.plot(x_vals, y_vals, label=f"f(x) = {expr_str}", color='#1B4F72', linewidth=2)
+            ax.axhline(0, color='black', linestyle='--', linewidth=0.8)
+            ax.axvline(0, color='black', linestyle='--', linewidth=0.8)
+            ax.grid(True, linestyle=':', alpha=0.6)
+
+            if marcar_raiz is not None:
+                ax.plot(marcar_raiz, 0, 'ro', markersize=8, label=f"Raíz ≈ {marcar_raiz:.6f}")
+                if a_mark is not None and b_mark is not None:
+                    ax.axvspan(a_mark, b_mark, color='orange', alpha=0.2, label=f"Intervalo [{a_mark}, {b_mark}]")
+
+            ax.set_title("Gráfica de la Función f(x)", fontsize=12, fontweight='bold', color='#2C3E50')
+            ax.set_xlabel("Eje X")
+            ax.set_ylabel("Eje Y")
+            
+            # Ajustar límites del eje Y automáticamente según los valores válidos
+            y_validos = y_vals[~np.isnan(y_vals)]
+            if len(y_validos) > 0:
+                y_min_val, y_max_val = np.min(y_validos), np.max(y_validos)
+                if y_min_val == y_max_val:
+                    ax.set_ylim(y_min_val - 1, y_max_val + 1)
+                else:
+                    margen = (y_max_val - y_min_val) * 0.1
+                    ax.set_ylim(y_min_val - margen, y_max_val + margen)
+
+            ax.set_xlim(xmin, xmax)
+            ax.legend(loc='best')
+
+            # Redibujar el lienzo de Matplotlib
+            self.canvas_graf.draw_idle()
+
+        except Exception as e:
+            QMessageBox.critical(self, "Error en Gráfica", f"No se pudo generar la gráfica: {str(e)}")
+
+    # --- 3. SUB-MÓDULO C: NOTACIÓN POSICIONAL ---
+    def _crear_vista_notacion(self):
+        w = QWidget()
+        l = QHBoxLayout(w)
+
+        left = QVBoxLayout()
+        grp = QGroupBox("Entrada de Número Entero")
+        gl = QVBoxLayout(grp)
+
+        gl.addWidget(QLabel("Número entero:"))
+        self.spin_num_pos = QSpinBox(); self.spin_num_pos.setRange(-1000000, 1000000); self.spin_num_pos.setValue(84506)
+        gl.addWidget(self.spin_num_pos)
+
+        btn_pos = QPushButton("Descomponer Posicionalmente")
+        btn_pos.clicked.connect(self.ejecutar_notacion_posicional)
+        gl.addWidget(btn_pos)
+        left.addWidget(grp)
+
+        self.txt_out_pos = QTextEdit(); self.txt_out_pos.setReadOnly(True)
+        l.addLayout(left, 4)
+        l.addWidget(self.txt_out_pos, 6)
+
+        return w
+
+    def ejecutar_notacion_posicional(self):
+        try:
+            num = int(self.spin_num_pos.value())
+            html = descomponer_notacion_posicional(num)
+            self.txt_out_pos.setHtml(html)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
+
+    # --- 4. SUB-MÓDULO D: ERRORES NUMÉRICOS ---
+    def _crear_vista_errores(self):
+        w = QWidget()
+        l = QHBoxLayout(w)
+
+        left = QVBoxLayout()
+        grp1 = QGroupBox("1. Datos para Errores Absoluto/Relativo")
+        g1 = QVBoxLayout(grp1)
+        g1.addWidget(QLabel("Valor Verdadero (xv):"))
+        self.txt_xv = QLineEdit("3.14159265")
+        g1.addWidget(self.txt_xv)
+
+        g1.addWidget(QLabel("Valor Aproximado (xa):"))
+        self.txt_xa = QLineEdit("3.14")
+        g1.addWidget(self.txt_xa)
+        left.addWidget(grp1)
+
+        grp2 = QGroupBox("2. Propagación en f(x) = sin(x) + x²")
+        g2 = QVBoxLayout(grp2)
+        g2.addWidget(QLabel("Punto x:"))
+        self.txt_xprop = QLineEdit("1.0")
+        g2.addWidget(self.txt_xprop)
+
+        g2.addWidget(QLabel("Perturbación Δx:"))
+        self.txt_dxprop = QLineEdit("0.01")
+        g2.addWidget(self.txt_dxprop)
+        left.addWidget(grp2)
+
+        btn_err = QPushButton("Calcular Errores y Propagación")
+        btn_err.clicked.connect(self.ejecutar_errores)
+        left.addWidget(btn_err)
+
+        self.txt_out_err = QTextEdit(); self.txt_out_err.setReadOnly(True)
+        l.addLayout(left, 4)
+        l.addWidget(self.txt_out_err, 6)
+
+        return w
+
+    def ejecutar_errores(self):
+        try:
+            xv = float(self.txt_xv.text().strip())
+            xa = float(self.txt_xa.text().strip())
+            xprop = float(self.txt_xprop.text().strip())
+            dx = float(self.txt_dxprop.text().strip())
+
+            html = calcular_errores_y_propagacion(xv, xa, xprop, dx)
+            self.txt_out_err.setHtml(html)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Verifique los datos numéricos: {str(e)}")
