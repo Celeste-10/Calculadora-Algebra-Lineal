@@ -1129,6 +1129,7 @@ class VentanaPrincipal(QMainWindow):
         left = QVBoxLayout()
         grp = QGroupBox("Parámetros de Entrada para Bisección")
         gl = QVBoxLayout(grp)
+        gl.setSpacing(10)
 
         gl.addWidget(QLabel("Función f(x):"))
         self.txt_fn_bis = QLineEdit("x**3 - 2*x - 5")
@@ -1157,7 +1158,9 @@ class VentanaPrincipal(QMainWindow):
         btn_run = QPushButton("Ejecutar Bisección y Generar Tabla")
         btn_run.clicked.connect(self.ejecutar_biseccion)
         gl.addWidget(btn_run)
+
         left.addWidget(grp)
+        left.addStretch(1)  # Empuja los controles hacia arriba
 
         self.txt_out_bis = QTextEdit(); self.txt_out_bis.setReadOnly(True)
         l.addLayout(left, 4)
@@ -1192,6 +1195,7 @@ class VentanaPrincipal(QMainWindow):
         left = QVBoxLayout()
         grp = QGroupBox("Configuración de Gráfica")
         gl = QVBoxLayout(grp)
+        gl.setSpacing(10)
 
         gl.addWidget(QLabel("Función f(x):"))
         self.txt_fn_graf = QLineEdit("cos(x) - x")
@@ -1210,7 +1214,9 @@ class VentanaPrincipal(QMainWindow):
         btn_graf = QPushButton("Generar Gráfica Interactiva")
         btn_graf.clicked.connect(lambda: self.graficar_funcion())
         gl.addWidget(btn_graf)
+
         left.addWidget(grp)
+        left.addStretch(1)  # Empuja los controles hacia arriba
 
         self.canvas_graf = CanvasGraficador(self)
         l.addLayout(left, 4)
@@ -1243,7 +1249,6 @@ class VentanaPrincipal(QMainWindow):
             ax = self.canvas_graf.ax
             ax.clear()
 
-            # Graficar la curva principal
             ax.plot(x_vals, y_vals, label=f"f(x) = {expr_str}", color='#1B4F72', linewidth=2)
             ax.axhline(0, color='black', linestyle='--', linewidth=0.8)
             ax.axvline(0, color='black', linestyle='--', linewidth=0.8)
@@ -1258,7 +1263,6 @@ class VentanaPrincipal(QMainWindow):
             ax.set_xlabel("Eje X")
             ax.set_ylabel("Eje Y")
             
-            # Ajustar límites del eje Y automáticamente según los valores válidos
             y_validos = y_vals[~np.isnan(y_vals)]
             if len(y_validos) > 0:
                 y_min_val, y_max_val = np.min(y_validos), np.max(y_validos)
@@ -1271,7 +1275,6 @@ class VentanaPrincipal(QMainWindow):
             ax.set_xlim(xmin, xmax)
             ax.legend(loc='best')
 
-            # Redibujar el lienzo de Matplotlib
             self.canvas_graf.draw_idle()
 
         except Exception as e:
@@ -1285,6 +1288,7 @@ class VentanaPrincipal(QMainWindow):
         left = QVBoxLayout()
         grp = QGroupBox("Entrada de Número Entero")
         gl = QVBoxLayout(grp)
+        gl.setSpacing(10)
 
         gl.addWidget(QLabel("Número entero:"))
         self.spin_num_pos = QSpinBox(); self.spin_num_pos.setRange(-1000000, 1000000); self.spin_num_pos.setValue(84506)
@@ -1293,7 +1297,9 @@ class VentanaPrincipal(QMainWindow):
         btn_pos = QPushButton("Descomponer Posicionalmente")
         btn_pos.clicked.connect(self.ejecutar_notacion_posicional)
         gl.addWidget(btn_pos)
+
         left.addWidget(grp)
+        left.addStretch(1)  # Empuja los controles hacia arriba
 
         self.txt_out_pos = QTextEdit(); self.txt_out_pos.setReadOnly(True)
         l.addLayout(left, 4)
@@ -1315,8 +1321,10 @@ class VentanaPrincipal(QMainWindow):
         l = QHBoxLayout(w)
 
         left = QVBoxLayout()
+
         grp1 = QGroupBox("1. Datos para Errores Absoluto/Relativo")
         g1 = QVBoxLayout(grp1)
+        g1.setSpacing(8)
         g1.addWidget(QLabel("Valor Verdadero (xv):"))
         self.txt_xv = QLineEdit("3.14159265")
         g1.addWidget(self.txt_xv)
@@ -1328,6 +1336,7 @@ class VentanaPrincipal(QMainWindow):
 
         grp2 = QGroupBox("2. Propagación en f(x) = sin(x) + x²")
         g2 = QVBoxLayout(grp2)
+        g2.setSpacing(8)
         g2.addWidget(QLabel("Punto x:"))
         self.txt_xprop = QLineEdit("1.0")
         g2.addWidget(self.txt_xprop)
@@ -1340,6 +1349,8 @@ class VentanaPrincipal(QMainWindow):
         btn_err = QPushButton("Calcular Errores y Propagación")
         btn_err.clicked.connect(self.ejecutar_errores)
         left.addWidget(btn_err)
+
+        left.addStretch(1)  # Empuja los controles hacia arriba
 
         self.txt_out_err = QTextEdit(); self.txt_out_err.setReadOnly(True)
         l.addLayout(left, 4)
