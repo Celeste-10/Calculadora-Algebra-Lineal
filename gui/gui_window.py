@@ -1530,21 +1530,17 @@ class VentanaPrincipal(QMainWindow):
                     )
 
                 tabla_html = f"""
-                <h3 style='color:#1B4F72; margin-bottom:6px;'>Tabla de Iteraciones (Newton-Raphson)</h3>
-                <table border='1' cellspacing='0' cellpadding='5' width='100%' style='border-collapse:collapse; border-color:#BFD8FF; font-size:12px;'>
-                    <thead style='background-color:#4A90E2; color:white;'>
-                        <tr>
-                            <th>i</th>
-                            <th>x<sub>i</sub></th>
-                            <th>f(x<sub>i</sub>)</th>
-                            <th>f'(x<sub>i</sub>)</th>
-                            <th>x<sub>i+1</sub></th>
-                            <th>Error Aproximado</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {''.join(filas_html)}
-                    </tbody>
+                <h3 style='color:#1B4F72; margin-bottom:6px;'>Tabla Completa de Iteraciones (Newton-Raphson):</h3>
+                <table border='1' cellspacing='0' cellpadding='5' width='100%' style='border-collapse:collapse; border-color:#888888; font-size:12px;'>
+                    <tr bgcolor='#4A90E2' style='color:#FFFFFF; font-weight:bold;' align='center'>
+                        <th>i</th>
+                        <th>x<sub>i</sub></th>
+                        <th>f(x<sub>i</sub>)</th>
+                        <th>f'(x<sub>i</sub>)</th>
+                        <th>x<sub>i+1</sub></th>
+                        <th>Error Aproximado ε<sub>a</sub> (%)</th>
+                    </tr>
+                    {''.join(filas_html)}
                 </table>
                 """
                 self.txt_tabla_nr.setHtml(tabla_html)
