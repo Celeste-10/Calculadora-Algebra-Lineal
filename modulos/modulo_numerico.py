@@ -9,10 +9,17 @@ Implementa:
 Asignatura: Álgebra Lineal 
 """
 
+import pandas as pd
 import math
 import numpy as np
 import sympy as sp
 from scipy.optimize import bisect
+from sympy.parsing.sympy_parser import (
+    parse_expr,
+    standard_transformations,
+    implicit_multiplication_application,
+    convert_xor,
+)
 
 # ------------------------------------------------------------------------------
 # EVALUADOR SEGURO DE FUNCIONES CON SYMPY (EVITA EVAL DIRECTO)
@@ -322,3 +329,170 @@ def calcular_errores_y_propagacion(xv, xa, x_prop, dx):
     html += "<i>Representa la distancia relativa entre 1.0 y el número representable inmediatamente superior en doble precisión.</i></p>"
 
     return html
+
+# ==============================================================================
+# 5. MÉTODO DE NEWTON-RAPHSON 
+# ==============================================================================
+def _limpiar_expresion_nr(expr_str: str) -> str:
+    """Normaliza símbolos comunes de entrada del usuario para SymPy."""
+    limpia = expr_str.strip()
+    reemplazos = {
+        "^": "**",
+        "sen(": "sin(",
+        "Sen(": "sin(",
+        "SEN(": "sin(",
+        "ln(": "log(",
+        "Ln(": "log(",
+        "LN(": "log(",
+        "e**": "exp(",
+    }
+    for viejo, nuevo in reemplazos.items():
+        limpia = limpia.replace(viejo, nuevo)
+    return limpia
+
+
+def algoritmo_newton_raphson(
+    expr_str: str,
+    x0: float,
+    tolerancia: float = 1e-5,
+    max_iter: int = 50,
+    umbral_derivada: float = 1e-12,
+) -> dict:
+    """
+    Implementa el método de Newton-Raphson para f(x) = 0 a partir de x0.
+    Calcula la derivada simbólica con SymPy, controla condiciones de fallo
+    y organiza los resultados con Pandas y NumPy.
+    """
+    if not expr_str or not expr_str.strip():
+        raise ValueError("Debe ingresar una expresión simbólica para f(x).")
+    if not np.isfinite(x0):
+        raise ValueError("El valor inicial x₀ debe ser un número real finito.")
+    if not np.isfinite(tolerancia) or tolerancia <= 0:
+        raise ValueError("La tolerancia debe ser un número positivo mayor que cero.")
+    if int(max_iter) != max_iter or max_iter <= 0:
+        raise ValueError("El máximo de iteraciones debe ser un entero positivo.")
+
+    x = sp.Symbol("x", real=True)
+    transformaciones = standard_transformations + (
+        implicit_multiplication_application,
+        convert_xor,
+    )
+
+    try:
+        expr_normalizada = _limpiar_expresion_nr(expr_str)
+        f_sym = parse_expr(expr_normalizada, local_dict={"x": x}, transformations=transformaciones)
+    except Exception as exc:
+        raise ValueError(f"No se pudo interpretar la expresión f(x): {exc}") from exc
+
+    simbolos_extra = f_sym.free_symbols - {x}
+    if simbolos_extra:
+        nombres = ", ".join(str(s) for s in simbolos_extra)
+        raise ValueError(f"La función solo debe depender de la variable 'x'. Símbolos no válidos: {nombres}")
+
+    # Derivación simbólica con SymPy
+    df_sym = sp.diff(f_sym, x)
+
+    # Funciones numéricas evaluables
+    f_num = sp.lambdify(x, f_sym, modules=["numpy"])
+    df_num = sp.lambdify(x, df_sym, modules=["numpy"])
+
+    def evaluar_seguro(func, val):
+        try:
+            res = func(float(val))
+            if isinstance(res, complex):
+                if abs(res.imag) > 1e-12:
+                    return np.nan
+                res = res.real
+            res = float(res)
+            return res if np.isfinite(res) else np.nan
+        except Exception:
+            return np.nan
+
+    registros = []
+    xi = float(x0)
+    x_aprox = xi
+    error_final = np.nan
+    tipo_error_final = "Relativo (%)"
+    estado = "No converge: se alcanzó el máximo de iteraciones sin cumplir la tolerancia"
+    convergio = False
+
+    for i in range(1, max_iter + 1):
+        f_xi = evaluar_seguro(f_num, xi)
+        df_xi = evaluar_seguro(df_num, xi)
+
+        if not np.isfinite(f_xi) or not np.isfinite(df_xi):
+            estado = f"Detenido en iteración {i}: f(xᵢ) o f'(xᵢ) indefinido o fuera de dominio"
+            x_aprox = xi
+            break
+
+        # Control de derivada nula o cercana a cero
+        if abs(df_xi) <= umbral_derivada:
+            registros.append({
+                "i": i,
+                "x_i": xi,
+                "f(x_i)": f_xi,
+                "f'(x_i)": df_xi,
+                "x_{i+1}": np.nan,
+                "Error": np.nan,
+                "Tipo Error": "Derivada nula",
+            })
+            estado = f"Detenido en iteración {i}: derivada nula o cercana a cero (|f'(xᵢ)| = {abs(df_xi):.3e} ≤ {umbral_derivada:.1e})"
+            x_aprox = xi
+            break
+
+        # Fórmula iterativa: x_{i+1} = x_i - f(x_i) / f'(x_i)
+        x_next = xi - (f_xi / df_xi)
+
+        if not np.isfinite(x_next) or abs(x_next) > 1e150:
+            estado = f"Detenido en iteración {i}: desbordamiento numérico / divergencia"
+            x_aprox = xi
+            break
+
+        # Error relativo aproximado porcentual (sin dividir entre 0 si x_{i+1} == 0)
+        if abs(x_next) > 1e-15:
+            error_val = abs((x_next - xi) / x_next) * 100.0
+            tipo_error = "Relativo (%)"
+        else:
+            error_val = abs(x_next - xi)
+            tipo_error = "Absoluto (xᵢ₊₁=0)"
+
+        registros.append({
+            "i": i,
+            "x_i": xi,
+            "f(x_i)": f_xi,
+            "f'(x_i)": df_xi,
+            "x_{i+1}": x_next,
+            "Error": error_val,
+            "Tipo Error": tipo_error,
+        })
+
+        x_aprox = x_next
+        error_final = error_val
+        tipo_error_final = tipo_error
+
+        if error_val <= tolerancia:
+            convergio = True
+            estado = "Convergencia alcanzada (error aproximado ≤ tolerancia)"
+            break
+
+        xi = x_next
+
+    residuo = evaluar_seguro(f_num, x_aprox)
+    residuo_abs = abs(residuo) if np.isfinite(residuo) else np.nan
+
+    return {
+        "f_str": str(f_sym).replace("**", "^"),
+        "df_str": str(df_sym).replace("**", "^"),
+        "f_num": lambda arr: np.array([evaluar_seguro(f_num, v) for v in np.atleast_1d(arr)], dtype=float),
+        "tabla": pd.DataFrame(registros),
+        "x_aprox": x_aprox,
+        "iteraciones": len(registros),
+        "error_final": error_final,
+        "tipo_error_final": tipo_error_final,
+        "residuo": residuo_abs,
+        "estado": estado,
+        "convergio": convergio,
+        "tolerancia": tolerancia,
+        "max_iter": max_iter,
+        "x0": float(x0),
+    }

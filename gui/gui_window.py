@@ -53,7 +53,7 @@ from modulos.modulo_lu import (
 
 from modulos.modulo_numerico import(
     algoritmo_biseccion, descomponer_notacion_posicional, calcular_errores_y_propagacion, 
-    evaluar_funcion_segura
+    evaluar_funcion_segura, algoritmo_newton_raphson
 )
 
 from modulos.modulo_iterativos import comparar as comparar_iterativos
@@ -1102,29 +1102,32 @@ class VentanaPrincipal(QMainWindow):
             "1. Método de Bisección (Con Tabla de Iteraciones Completa)",
             "2. Graficador de Funciones (Con Raíz y Restricciones de Dominio)",
             "3. Notación Posicional (Base 10 y Base 2)",
-            "4. Errores Numéricos y Propagación de Errores"
+            "4. Errores Numéricos y Propagación de Errores",
+            "5. Método de Newton-Raphson (Derivada Simbólica y Tangentes)"
         ])
         top_selector.addWidget(self.combo_opciones_num, 1)
         main_layout.addLayout(top_selector)
 
-        # StackedWidget Interno para cambiar entre las 4 vistas
+        # StackedWidget Interno para cambiar entre las 5 vistas
         self.stack_numerico = QStackedWidget()
 
         self.vista_biseccion = self._crear_vista_biseccion()
         self.vista_graficador = self._crear_vista_graficador()
         self.vista_notacion = self._crear_vista_notacion()
         self.vista_errores = self._crear_vista_errores()
+        self.vista_newton = self._crear_vista_newton()
 
         self.stack_numerico.addWidget(self.vista_biseccion)
         self.stack_numerico.addWidget(self.vista_graficador)
         self.stack_numerico.addWidget(self.vista_notacion)
         self.stack_numerico.addWidget(self.vista_errores)
+        self.stack_numerico.addWidget(self.vista_newton)
 
         self.combo_opciones_num.currentIndexChanged.connect(self.stack_numerico.setCurrentIndex)
         main_layout.addWidget(self.stack_numerico)
 
         return w
-
+       
     # --- 1. SUB-MÓDULO A: BISECCIÓN ---
     def _crear_vista_biseccion(self):
         w = QWidget()
@@ -1374,8 +1377,238 @@ class VentanaPrincipal(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Verifique los datos numéricos: {str(e)}")
 
+    # --- 5. SUB-MÓDULO E: MÉTODO DE NEWTON-RAPHSON (PROGRAMA 9) ---
+    def _crear_vista_newton(self):
+        w = QWidget()
+        layout_principal = QHBoxLayout(w)
+
+        # PANEL IZQUIERDO: ENTRADAS Y CASOS OBLIGATORIOS
+        panel_izq = QVBoxLayout()
+
+        grp_in = QGroupBox("1. Función y Parámetros de Newton-Raphson")
+        l_in = QVBoxLayout(grp_in)
+        l_in.setSpacing(8)
+
+        l_in.addWidget(QLabel("Función f(x) (sintaxis SymPy, ej. x**3 - 2*x - 5, cos(x) - x):"))
+        self.txt_fn_newton = QLineEdit("x**3 - 2*x - 5")
+        l_in.addWidget(self.txt_fn_newton)
+
+        fila_x0 = QHBoxLayout()
+        fila_x0.addWidget(QLabel("Valor inicial (x₀):"))
+        self.txt_x0_newton = QLineEdit("2.0")
+        fila_x0.addWidget(self.txt_x0_newton)
+
+        fila_x0.addWidget(QLabel("Tolerancia ε (%):"))
+        self.txt_tol_newton = QLineEdit("1e-5")
+        fila_x0.addWidget(self.txt_tol_newton)
+        l_in.addLayout(fila_x0)
+
+        fila_it = QHBoxLayout()
+        fila_it.addWidget(QLabel("Máx. Iteraciones:"))
+        self.spin_max_newton = QSpinBox()
+        self.spin_max_newton.setRange(1, 500)
+        self.spin_max_newton.setValue(50)
+        fila_it.addWidget(self.spin_max_newton)
+
+        self.chk_tangentes_newton = QCheckBox("Mostrar rectas tangentes")
+        self.chk_tangentes_newton.setChecked(True)
+        fila_it.addWidget(self.chk_tangentes_newton)
+        l_in.addLayout(fila_it)
+
+        panel_izq.addWidget(grp_in)
+
+        grp_casos_nr = QGroupBox("2. Casos de Prueba Obligatorios")
+        l_casos_nr = QVBoxLayout(grp_casos_nr)
+
+        btn_nr_c1 = QPushButton("Caso 1: Convergencia  |  f(x) = x³ - 2x - 5,  x₀ = 2.0")
+        btn_nr_c1.clicked.connect(lambda: self.cargar_caso_newton(1))
+
+        btn_nr_c2 = QPushButton("Caso 2: Derivada Nula  |  f(x) = x² - 4,  x₀ = 0.0")
+        btn_nr_c2.clicked.connect(lambda: self.cargar_caso_newton(2))
+
+        btn_nr_c3 = QPushButton("Caso 3: No Converge (Ciclo)  |  f(x) = x³ - 2x + 2,  x₀ = 0.0")
+        btn_nr_c3.clicked.connect(lambda: self.cargar_caso_newton(3))
+
+        l_casos_nr.addWidget(btn_nr_c1)
+        l_casos_nr.addWidget(btn_nr_c2)
+        l_casos_nr.addWidget(btn_nr_c3)
+        panel_izq.addWidget(grp_casos_nr)
+
+        btn_ejecutar_nr = QPushButton("Ejecutar Newton-Raphson")
+        btn_ejecutar_nr.setFixedHeight(36)
+        btn_ejecutar_nr.clicked.connect(self.ejecutar_newton)
+        panel_izq.addWidget(btn_ejecutar_nr)
+        panel_izq.addStretch(1)
+
+        # PANEL DERECHO: RESUMEN + TABLA + GRÁFICA CON TANGENTES
+        panel_der = QVBoxLayout()
+        self.tabs_resultados_nr = QTabWidget()
+
+        self.txt_resumen_nr = QTextEdit()
+        self.txt_resumen_nr.setReadOnly(True)
+
+        self.txt_tabla_nr = QTextEdit()
+        self.txt_tabla_nr.setReadOnly(True)
+
+        self.canvas_nr = CanvasGraficador(self, width=6, height=4.5, dpi=100)
+
+        self.tabs_resultados_nr.addTab(self.txt_resumen_nr, "Resumen y Derivada")
+        self.tabs_resultados_nr.addTab(self.txt_tabla_nr, "Tabla de Iteraciones")
+        self.tabs_resultados_nr.addTab(self.canvas_nr, "Gráfica y Tangentes")
+
+        panel_der.addWidget(self.tabs_resultados_nr)
+
+        layout_principal.addLayout(panel_izq, 40)
+        layout_principal.addLayout(panel_der, 60)
+
+        return w
+
+    def cargar_caso_newton(self, caso):
+        casos = {
+            1: ("x**3 - 2*x - 5", "2.0", "1e-5", 50),
+            2: ("x**2 - 4", "0.0", "1e-5", 50),
+            3: ("x**3 - 2*x + 2", "0.0", "1e-6", 15),
+        }
+        fn, x0, tol, max_it = casos[caso]
+        self.txt_fn_newton.setText(fn)
+        self.txt_x0_newton.setText(x0)
+        self.txt_tol_newton.setText(tol)
+        self.spin_max_newton.setValue(max_it)
+
+    def ejecutar_newton(self):
+        try:
+            expr = self.txt_fn_newton.text().strip()
+            x0 = float(self.txt_x0_newton.text().strip())
+            tol = float(self.txt_tol_newton.text().strip())
+            max_iter = int(self.spin_max_newton.value())
+
+            res = algoritmo_newton_raphson(expr, x0, tol, max_iter)
+
+            color_estado = "#15803D" if res["convergio"] else "#DC2626"
+            err_txt = f"{res['error_final']:.6e} ({res['tipo_error_final']})" if np.isfinite(res["error_final"]) else "No disponible"
+            res_txt = f"{res['residuo']:.6e}" if np.isfinite(res["residuo"]) else "No definido"
+
+            resumen_html = f"""
+            <h3 style='color:#1B4F72; margin-top:0;'>Resultados del Método de Newton-Raphson</h3>
+            <div style='background-color:#F4F8FF; border-left:4px solid #4A90E2; padding:10px; margin-bottom:12px;'>
+                <b>Función ingresada f(x):</b> <code>{res['f_str']}</code><br>
+                <b>Derivada simbólica f'(x) (SymPy):</b> <code>{res['df_str']}</code>
+            </div>
+
+            <div style='background-color:#F8FAFC; border-left:4px solid {color_estado}; padding:10px; margin-bottom:12px;'>
+                <b>Estado del proceso:</b> <span style='color:{color_estado}; font-weight:bold;'>{res['estado']}</span><br>
+                <b>Aproximación obtenida (x<sub>aprox</sub>):</b> <code>{res['x_aprox']:.8f}</code><br>
+                <b>Iteraciones realizadas:</b> {res['iteraciones']} de {res['max_iter']} permitidas<br>
+                <b>Error aproximado alcanzado:</b> {err_txt}<br>
+                <b>Residuo |f(x<sub>aprox</sub>)|:</b> {res_txt}
+            </div>
+
+            <p style='font-size:12px; color:#4B5563;'>
+                <b>Criterio de parada configurado:</b> Error aproximado ≤ {res['tolerancia']:g} o máximo de {res['max_iter']} iteraciones.<br>
+                <i>Nota: El valor obtenido corresponde a una aproximación numérica de la raíz, validada mediante el residuo |f(x<sub>aprox</sub>)|.</i>
+            </p>
+            """
+            self.txt_resumen_nr.setHtml(resumen_html)
+
+            df = res["tabla"]
+            if df.empty:
+                self.txt_tabla_nr.setHtml("<p>No se registraron iteraciones completas.</p>")
+            else:
+                filas_html = []
+                for _, fila in df.iterrows():
+                    x_next_str = f"{fila['x_{i+1}']:.8f}" if np.isfinite(fila["x_{i+1}"]) else "Indefinido"
+                    err_str = f"{fila['Error']:.4e} ({fila['Tipo Error']})" if np.isfinite(fila["Error"]) else fila["Tipo Error"]
+                    filas_html.append(
+                        f"<tr>"
+                        f"<td align='center'><b>{int(fila['i'])}</b></td>"
+                        f"<td>{fila['x_i']:.8f}</td>"
+                        f"<td>{fila['f(x_i)']:.6e}</td>"
+                        f"<td>{fila['f\'(x_i)']:.6e}</td>"
+                        f"<td>{x_next_str}</td>"
+                        f"<td>{err_str}</td>"
+                        f"</tr>"
+                    )
+
+                tabla_html = f"""
+                <h3 style='color:#1B4F72; margin-bottom:6px;'>Tabla de Iteraciones (Newton-Raphson)</h3>
+                <table border='1' cellspacing='0' cellpadding='5' width='100%' style='border-collapse:collapse; border-color:#BFD8FF; font-size:12px;'>
+                    <thead style='background-color:#4A90E2; color:white;'>
+                        <tr>
+                            <th>i</th>
+                            <th>x<sub>i</sub></th>
+                            <th>f(x<sub>i</sub>)</th>
+                            <th>f'(x<sub>i</sub>)</th>
+                            <th>x<sub>i+1</sub></th>
+                            <th>Error Aproximado</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {''.join(filas_html)}
+                    </tbody>
+                </table>
+                """
+                self.txt_tabla_nr.setHtml(tabla_html)
+
+            ax = self.canvas_nr.ax
+            ax.clear()
+
+            puntos_x = [res["x0"]]
+            if not df.empty:
+                puntos_x.extend(df["x_i"].dropna().tolist())
+                puntos_x.extend(df["x_{i+1}"].dropna().tolist())
+            puntos_x = [p for p in puntos_x if np.isfinite(p)]
+
+            x_min = min(puntos_x) - 1.5
+            x_max = max(puntos_x) + 1.5
+            if x_max - x_min < 2.0:
+                centro = 0.5 * (x_min + x_max)
+                x_min, x_max = centro - 1.5, centro + 1.5
+
+            xs = np.linspace(x_min, x_max, 600)
+            ys = res["f_num"](xs)
+            ys = np.where(np.abs(ys) > 1e5, np.nan, ys)
+
+            ax.plot(xs, ys, color="#1B4F72", linewidth=2.2, label=f"f(x) = {res['f_str']}")
+            ax.axhline(0, color="black", linestyle="--", linewidth=0.9)
+            ax.axvline(0, color="black", linestyle=":", linewidth=0.7)
+
+            if self.chk_tangentes_newton.isChecked() and not df.empty:
+                for idx_t, fila in df.head(5).iterrows():
+                    xi_t = fila["x_i"]
+                    f_t = fila["f(x_i)"]
+                    df_t = fila["f'(x_i)"]
+                    x_next_t = fila["x_{i+1}"]
+                    if np.isfinite(xi_t) and np.isfinite(f_t) and np.isfinite(df_t) and np.isfinite(x_next_t):
+                        ax.plot([xi_t, x_next_t], [f_t, 0.0], linestyle="--", linewidth=1.2, color="#E67E22", alpha=0.85,
+                                label="Rectas tangentes" if idx_t == 0 else "")
+                        ax.plot([xi_t, xi_t], [0, f_t], linestyle=":", linewidth=0.9, color="#7F8C8D")
+                        ax.plot(xi_t, f_t, "o", color="#E67E22", markersize=4)
+
+            ax.plot(res["x0"], 0, "bs", markersize=6, label=f"Inicial x₀ = {res['x0']:.4g}")
+            if np.isfinite(res["x_aprox"]):
+                ax.plot(res["x_aprox"], 0, "ro", markersize=8,
+                        label=f"Aproximación obtenida ≈ {res['x_aprox']:.6f}")
+
+            y_validos = ys[np.isfinite(ys)]
+            if len(y_validos) > 0:
+                ymin_v, ymax_v = np.min(y_validos), np.max(y_validos)
+                margen = max((ymax_v - ymin_v) * 0.12, 0.5)
+                ax.set_ylim(ymin_v - margen, ymax_v + margen)
+
+            ax.set_xlim(x_min, x_max)
+            ax.set_title("Método de Newton-Raphson: f(x) y Aproximaciones", fontsize=11, fontweight="bold", color="#1F2937")
+            ax.set_xlabel("x")
+            ax.set_ylabel("f(x)")
+            ax.grid(True, linestyle=":", alpha=0.6)
+            ax.legend(loc="best", fontsize=8)
+            self.canvas_nr.fig.tight_layout()
+            self.canvas_nr.draw_idle()
+
+        except Exception as e:
+            QMessageBox.warning(self, "Validación de Datos", str(e))
+
     # --------------------------------------------------------------------------
-    # PESTAÑA 8: JACOBI Y GAUSS-SEIDEL (PROGRAMA 8)
+    # PESTAÑA 8: JACOBI Y GAUSS-SEIDEL 
     # --------------------------------------------------------------------------
     def tab_iterativos(self):
         w = QWidget()
