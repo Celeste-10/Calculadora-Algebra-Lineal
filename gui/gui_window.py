@@ -11,7 +11,7 @@ try:
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
         QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
         QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget, QGraphicsDropShadowEffect,
-        QComboBox, QLineEdit
+        QComboBox, QLineEdit, QCheckBox
     )
     from PyQt6.QtGui import QFont, QPixmap
     from PyQt6.QtCore import Qt
@@ -20,7 +20,7 @@ except ImportError:
         QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QSpinBox,
         QPushButton, QTableWidget, QTableWidgetItem, QTextEdit, QGroupBox,
         QMessageBox, QTabWidget, QDoubleSpinBox, QHeaderView, QStackedWidget, 
-        QComboBox, QLineEdit
+        QComboBox, QLineEdit, QCheckBox
     )
     from PyQt5.QtCore import Qt
     from PyQt5.QtGui import QFont
@@ -55,6 +55,8 @@ from modulos.modulo_numerico import(
     algoritmo_biseccion, descomponer_notacion_posicional, calcular_errores_y_propagacion, 
     evaluar_funcion_segura
 )
+
+from modulos.modulo_iterativos import comparar as comparar_iterativos
 
 from teoremas.resumen_teoremas import PantallaTeoremas
 
@@ -262,16 +264,17 @@ class VentanaPrincipal(QMainWindow):
         btn_determinantes = QPushButton("4. Combinaciones y Propiedades Ax")
         btn_lu = QPushButton("5. Factorización LU (A = LU) y Solución Ax = b")
         btn_numerico = QPushButton("6. Métodos Numéricos (Bisección, Gráficas, Errores)")
-        btn_teoremas = QPushButton("7. Resumen de Teoremas y Fundamentos")
+        btn_iterativos = QPushButton("7. Métodos Iterativos (Jacobi y Gauss-Seidel)")
+        btn_teoremas = QPushButton("8. Resumen de Teoremas y Fundamentos")
 
-        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_lu, btn_numerico, btn_teoremas]
-        mapa_pestanas = [3, 0, 1, 2, 5, 6]
+        botones = [btn_sistemas, btn_vectores, btn_matrices, btn_determinantes, btn_lu, btn_numerico, btn_iterativos, btn_teoremas]
+        mapa_pestanas = [3, 0, 1, 2, 5, 6, 7]
 
         for idx, btn in enumerate(botones):
             btn.setFixedHeight(40)
             btn.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold if hasattr(QFont, 'Weight') else QFont.Bold))
             
-            if idx < 6:
+            if idx < 7:
                 target_tab = mapa_pestanas[idx]
                 btn.clicked.connect(lambda _, tab=target_tab: self.abrir_modulo(tab))
             else:
@@ -321,6 +324,7 @@ class VentanaPrincipal(QMainWindow):
         self.tabs.addTab(self.tab_propiedades_ax(), "Propiedades Ax")
         self.tabs.addTab(self.tab_lu(), "Factorización LU")
         self.tabs.addTab(self.tab_metodos_numericos(), "Métodos Numéricos")
+        self.tabs.addTab(self.tab_iterativos(), "Jacobi y Gauss-Seidel")
 
         layout_main.addWidget(self.tabs)
         return widget
@@ -1369,3 +1373,285 @@ class VentanaPrincipal(QMainWindow):
             self.txt_out_err.setHtml(html)
         except Exception as e:
             QMessageBox.critical(self, "Error", f"Verifique los datos numéricos: {str(e)}")
+
+    # --------------------------------------------------------------------------
+    # PESTAÑA 8: JACOBI Y GAUSS-SEIDEL (PROGRAMA 8)
+    # --------------------------------------------------------------------------
+    def tab_iterativos(self):
+        w = QWidget()
+        layout_principal = QHBoxLayout(w)
+
+        # PANEL IZQUIERDO: ENTRADAS
+        panel_izq = QVBoxLayout()
+
+        grp_param = QGroupBox("1. Parámetros de Control")
+        l_param = QVBoxLayout(grp_param)
+        l_param.setSpacing(8)
+
+        fila1 = QHBoxLayout()
+        fila1.addWidget(QLabel("Dimensión (n):"))
+        self.spin_n_iter = QSpinBox()
+        self.spin_n_iter.setRange(2, 10)
+        self.spin_n_iter.setValue(3)
+        fila1.addWidget(self.spin_n_iter)
+
+        btn_gen = QPushButton("Generar Tablas")
+        btn_gen.clicked.connect(self.gen_tablas_iterativos)
+        fila1.addWidget(btn_gen)
+        l_param.addLayout(fila1)
+
+        fila2 = QHBoxLayout()
+        fila2.addWidget(QLabel("Tolerancia (ε):"))
+        self.txt_tol_iter = QLineEdit("1e-6")
+        fila2.addWidget(self.txt_tol_iter)
+
+        fila2.addWidget(QLabel("Máx. Iteraciones:"))
+        self.spin_max_iter_p8 = QSpinBox()
+        self.spin_max_iter_p8.setRange(1, 5000)
+        self.spin_max_iter_p8.setValue(100)
+        fila2.addWidget(self.spin_max_iter_p8)
+        l_param.addLayout(fila2)
+
+        self.chk_reordenar_iter = QCheckBox("Evaluar reordenamiento de filas si hay ceros o falta dominancia")
+        self.chk_reordenar_iter.setChecked(True)
+        l_param.addWidget(self.chk_reordenar_iter)
+        panel_izq.addWidget(grp_param)
+
+        grp_datos = QGroupBox("2. Sistema [A | b] y Vector Inicial x⁽⁰⁾")
+        l_datos = QVBoxLayout(grp_datos)
+
+        l_datos.addWidget(QLabel("Matriz Aumentada [A | b]:"))
+        self.tab_Ab_iter = QTableWidget()
+        self.tab_Ab_iter.setMaximumHeight(165)
+        l_datos.addWidget(self.tab_Ab_iter)
+
+        l_datos.addWidget(QLabel("Vector Inicial x⁽⁰⁾:"))
+        self.tab_x0_iter = QTableWidget()
+        self.tab_x0_iter.setMaximumHeight(68)
+        l_datos.addWidget(self.tab_x0_iter)
+        panel_izq.addWidget(grp_datos)
+
+        grp_casos = QGroupBox("3. Casos de Prueba Obligatorios")
+        l_casos = QHBoxLayout(grp_casos)
+        btn_c1 = QPushButton("Caso 1: Convergencia")
+        btn_c1.clicked.connect(lambda: self.cargar_caso_iterativos(1))
+        btn_c2 = QPushButton("Caso 2: Reordenamiento")
+        btn_c2.clicked.connect(lambda: self.cargar_caso_iterativos(2))
+        btn_c3 = QPushButton("Caso 3: No Converge")
+        btn_c3.clicked.connect(lambda: self.cargar_caso_iterativos(3))
+        l_casos.addWidget(btn_c1)
+        l_casos.addWidget(btn_c2)
+        l_casos.addWidget(btn_c3)
+        panel_izq.addWidget(grp_casos)
+
+        btn_calc_iter = QPushButton("Ejecutar Jacobi y Gauss-Seidel")
+        btn_calc_iter.setFixedHeight(38)
+        btn_calc_iter.clicked.connect(self.ejecutar_iterativos)
+        panel_izq.addWidget(btn_calc_iter)
+        panel_izq.addStretch(1)
+
+        # PANEL DERECHO: RESULTADOS Y GRÁFICA
+        panel_der = QVBoxLayout()
+        self.tabs_resultados_iter = QTabWidget()
+
+        self.txt_resumen_iter = QTextEdit()
+        self.txt_resumen_iter.setReadOnly(True)
+
+        self.txt_tabla_jacobi = QTextEdit()
+        self.txt_tabla_jacobi.setReadOnly(True)
+
+        self.txt_tabla_gs = QTextEdit()
+        self.txt_tabla_gs.setReadOnly(True)
+
+        self.canvas_iter = CanvasGraficador(self, width=6, height=4.5, dpi=100)
+
+        self.tabs_resultados_iter.addTab(self.txt_resumen_iter, "Resumen y Validación")
+        self.tabs_resultados_iter.addTab(self.txt_tabla_jacobi, "Tabla Jacobi")
+        self.tabs_resultados_iter.addTab(self.txt_tabla_gs, "Tabla Gauss-Seidel")
+        self.tabs_resultados_iter.addTab(self.canvas_iter, "Gráfica Comparativa")
+
+        panel_der.addWidget(self.tabs_resultados_iter)
+
+        layout_principal.addLayout(panel_izq, 45)
+        layout_principal.addLayout(panel_der, 55)
+
+        self.gen_tablas_iterativos()
+        self.cargar_caso_iterativos(1)
+        return w
+
+    def gen_tablas_iterativos(self):
+        n = self.spin_n_iter.value()
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+
+        self.tab_Ab_iter.setRowCount(n)
+        self.tab_Ab_iter.setColumnCount(n + 1)
+        self.tab_Ab_iter.setHorizontalHeaderLabels([f"x{j+1}" for j in range(n)] + ["b"])
+        self.tab_Ab_iter.setVerticalHeaderLabels([f"Ec. {i+1}" for i in range(n)])
+        for i in range(n):
+            for j in range(n + 1):
+                item = QTableWidgetItem("0")
+                item.setTextAlignment(align_center)
+                self.tab_Ab_iter.setItem(i, j, item)
+
+        self.tab_x0_iter.setRowCount(1)
+        self.tab_x0_iter.setColumnCount(n)
+        self.tab_x0_iter.setHorizontalHeaderLabels([f"x{j+1}⁽⁰⁾" for j in range(n)])
+        self.tab_x0_iter.setVerticalHeaderLabels(["x⁽⁰⁾"])
+        for j in range(n):
+            item = QTableWidgetItem("0")
+            item.setTextAlignment(align_center)
+            self.tab_x0_iter.setItem(0, j, item)
+
+    def cargar_caso_iterativos(self, caso):
+        casos = {
+            1: ([[10, -1, 2], [-1, 11, -1], [2, -1, 10]], [6, 25, -11], [0, 0, 0], True),
+            2: ([[0, 10, 1], [8, 1, 1], [1, 1, 9]], [12, 10, 11], [0, 0, 0], True),
+            3: ([[1, 3], [3, 1]], [4, 4], [0, 0], False)
+        }
+        A, b, x0, reord = casos[caso]
+        n = len(A)
+        self.spin_n_iter.setValue(n)
+        self.gen_tablas_iterativos()
+        self.chk_reordenar_iter.setChecked(reord)
+
+        align_center = Qt.AlignmentFlag.AlignCenter if hasattr(Qt, 'AlignmentFlag') else Qt.AlignCenter
+        for i in range(n):
+            for j in range(n):
+                it = QTableWidgetItem(str(A[i][j]))
+                it.setTextAlignment(align_center)
+                self.tab_Ab_iter.setItem(i, j, it)
+            it_b = QTableWidgetItem(str(b[i]))
+            it_b.setTextAlignment(align_center)
+            self.tab_Ab_iter.setItem(i, n, it_b)
+
+            it_x0 = QTableWidgetItem(str(x0[i]))
+            it_x0.setTextAlignment(align_center)
+            self.tab_x0_iter.setItem(0, i, it_x0)
+
+    def _construir_tabla_html_iter(self, nombre_metodo, resultado, n):
+        historial = resultado['historial']
+        if not historial:
+            return f"<p>No se generaron iteraciones para {nombre_metodo}.</p>"
+
+        headers = "<th>k</th>" + "".join([f"<th>x<sub>{i+1}</sub></th>" for i in range(n)]) + "<th>Error ||x<sup>(k)</sup> - x<sup>(k-1)</sup>||<sub>∞</sub></th><th>Residuo ||Ax - b||<sub>∞</sub></th>"
+        filas_html = []
+        for reg in historial:
+            celdas_x = "".join([f"<td>{val:.7f}</td>" for val in reg['x']])
+            filas_html.append(
+                f"<tr>"
+                f"<td align='center'><b>{reg['k']}</b></td>"
+                f"{celdas_x}"
+                f"<td>{reg['error']:.4e}</td>"
+                f"<td>{reg['residuo']:.4e}</td>"
+                f"</tr>"
+            )
+
+        return f"""
+        <h3 style='color:#1B4F72; margin-bottom:4px;'>Iteraciones: Método de {nombre_metodo}</h3>
+        <p style='margin-top:0; color:#555;'><b>Estado:</b> {resultado['estado']} | <b>Total iteraciones:</b> {resultado['iteraciones']}</p>
+        <table border='1' cellspacing='0' cellpadding='5' width='100%' style='border-collapse:collapse; border-color:#BFD8FF; font-size:12px;'>
+            <thead style='background-color:#4A90E2; color:white;'>
+                <tr>{headers}</tr>
+            </thead>
+            <tbody>
+                {''.join(filas_html)}
+            </tbody>
+        </table>
+        """
+
+    def ejecutar_iterativos(self):
+        try:
+            n = self.spin_n_iter.value()
+            tol = float(self.txt_tol_iter.text().strip())
+            max_iter = int(self.spin_max_iter_p8.value())
+            reordenar = self.chk_reordenar_iter.isChecked()
+
+            mat = self._get_mat(self.tab_Ab_iter)
+            A = [fila[:n] for fila in mat]
+            b = [fila[n] for fila in mat]
+            x0 = self._get_vec(self.tab_x0_iter)
+
+            datos = comparar_iterativos(A, b, x0, tol, max_iter, reordenar)
+
+            dom_txt = "<span style='color:green; font-weight:bold;'>Sí (Convergencia garantizada)</span>" if datos['dominante'] else "<span style='color:#D97706; font-weight:bold;'>No (Condición suficiente no cumplida; no implica divergencia automática)</span>"
+            orden_txt = " → ".join([f"Ec.{i+1}" for i in datos['orden']])
+
+            bloques_metodos = ""
+            for nombre, res in datos['resultados'].items():
+                color_estado = "#15803D" if res['estado'].startswith("Convergencia") else "#DC2626"
+                sol_str = "[" + ", ".join([f"{v:.7f}" for v in res['x']]) + "]"
+                diff_ref = ""
+                if datos['referencia'] is not None:
+                    err_ref = float(np.max(np.abs(res['x'] - datos['referencia'])))
+                    diff_ref = f"<br><b>Diferencia vs Referencia (||x - x<sub>ref</sub>||<sub>∞</sub>):</b> {err_ref:.4e}"
+
+                bloques_metodos += f"""
+                <div style='background-color:#F8FAFC; border-left:4px solid #4A90E2; padding:8px; margin-bottom:10px;'>
+                    <h4 style='margin:0 0 4px 0; color:#1E3A8A;'>Método de {nombre}</h4>
+                    <b>Estado:</b> <span style='color:{color_estado}; font-weight:bold;'>{res['estado']}</span><br>
+                    <b>Iteraciones realizadas:</b> {res['iteraciones']}<br>
+                    <b>Solución aproximada x:</b> <code>{sol_str}</code><br>
+                    <b>Residuo final (||Ax - b||<sub>∞</sub>):</b> {res['residuo']:.4e}
+                    {diff_ref}
+                </div>
+                """
+
+            ref_html = ""
+            if datos['referencia'] is not None:
+                ref_str = "[" + ", ".join([f"{v:.7f}" for v in datos['referencia']]) + "]"
+                ref_html = f"<p><b>Solución de Referencia (<code>numpy.linalg.solve</code>):</b> <code>{ref_str}</code></p>"
+
+            convergentes = [r for r in datos['resultados'].values() if r['estado'].startswith('Convergencia')]
+            if len(convergentes) == 2:
+                if convergentes[0]['iteraciones'] == convergentes[1]['iteraciones']:
+                    comp_txt = "Ambos métodos convergieron en la misma cantidad de iteraciones."
+                else:
+                    ganador = min(convergentes, key=lambda r: r['iteraciones'])
+                    comp_txt = f"<b>{ganador['metodo']}</b> fue más rápido ({ganador['iteraciones']} iteraciones)."
+            else:
+                comp_txt = "Al menos uno de los métodos no alcanzó la convergencia."
+
+            resumen_html = f"""
+            <h3 style='color:#1B4F72; margin-top:0;'>Análisis Estructural y Comparativa</h3>
+            <p>
+                <b>Diagonal Estrictamente Dominante:</b> {dom_txt}<br>
+                <b>Orden de ecuaciones aplicado:</b> {orden_txt}
+            </p>
+            {bloques_metodos}
+            {ref_html}
+            <p>
+                <b>Diferencia entre Jacobi y Gauss-Seidel (||x<sub>J</sub> - x<sub>GS</sub>||<sub>∞</sub>):</b> {datos['diferencia_metodos']:.4e}<br>
+                <b>Conclusión comparativa:</b> {comp_txt}
+            </p>
+            """
+            self.txt_resumen_iter.setHtml(resumen_html)
+
+            self.txt_tabla_jacobi.setHtml(self._construir_tabla_html_iter("Jacobi", datos['resultados']['Jacobi'], n))
+            self.txt_tabla_gs.setHtml(self._construir_tabla_html_iter("Gauss-Seidel", datos['resultados']['Gauss-Seidel'], n))
+
+            ax = self.canvas_iter.ax
+            ax.clear()
+            tiene_datos = False
+            colores = {'Jacobi': '#1B4F72', 'Gauss-Seidel': '#E67E22'}
+            marcadores = {'Jacobi': 'o', 'Gauss-Seidel': 's'}
+
+            for nombre, r in datos['resultados'].items():
+                if r['historial']:
+                    tiene_datos = True
+                    ks = [h['k'] for h in r['historial']]
+                    errs = [max(h['error'], 1e-16) for h in r['historial']]
+                    ax.semilogy(ks, errs, marker=marcadores[nombre], markersize=5, linewidth=2,
+                                color=colores[nombre], label=f"{nombre} ({r['iteraciones']} iter.)")
+
+            if tiene_datos:
+                ax.axhline(tol, color='red', linestyle='--', linewidth=1, label=f"Tolerancia ε = {tol:g}")
+                ax.set_title("Convergencia: Error ||x⁽ᵏ⁾ - x⁽ᵏ⁻¹⁾||∞ por Iteración", fontsize=11, fontweight='bold', color='#1F2937')
+                ax.set_xlabel("Número de Iteración (k)", fontsize=10)
+                ax.set_ylabel("Error ∞ (Escala Logarítmica)", fontsize=10)
+                ax.grid(True, which="both", linestyle=':', alpha=0.6)
+                ax.legend(loc='best')
+                self.canvas_iter.fig.tight_layout()
+                self.canvas_iter.draw_idle()
+
+        except Exception as e:
+            QMessageBox.warning(self, "Validación de Datos", str(e))
