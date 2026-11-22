@@ -102,7 +102,7 @@ El objetivo principal es proporcionar un entorno didáctico que resuelva problem
 ### 1️⃣ Clonar el repositorio
 
 ```bash
-git clone [https://github.com/Celeste-10/Calculadora-Algebra-Lineal.git](https://github.com/Celeste-10/Calculadora-Algebra-Lineal.git)
+git clone https://github.com/Celeste-10/Calculadora-Algebra-Lineal.git
 cd Calculadora-Algebra-Lineal
 ```
 ### 2️⃣ Instalar dependencias requeridas
